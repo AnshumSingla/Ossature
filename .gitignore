@@ -1,0 +1,35 @@
+# --- OS / editors ---
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+*.iml
+
+# --- Secrets ---
+.env
+*.local.env
+**/application-local.yml
+**/application-local.properties
+
+# --- Node / frontend ---
+node_modules/
+frontend/dist/
+frontend/.vite/
+*.log
+npm-debug.log*
+
+# --- Java / backend ---
+backend/target/
+!backend/.mvn/wrapper/maven-wrapper.jar
+
+# --- Python / agent ---
+agent/.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- Docker ---
+.pgdata/

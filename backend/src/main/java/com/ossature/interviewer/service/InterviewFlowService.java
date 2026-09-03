@@ -1,0 +1,166 @@
+package com.ossature.interviewer.service;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ossature.interviewer.agent.AgentClient;
+import com.ossature.interviewer.agent.AgentDtos;
+import com.ossature.interviewer.domain.InterviewSession;
+import com.ossature.interviewer.repo.InterviewSessionRepository;
+import com.ossature.interviewer.ws.SessionSocketRegistry;
+import com.ossature.interviewer.ws.protocol.InterviewMessage;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.socket.TextMessage;
+import org.springframework.web.socket.WebSocketSession;
+
+/**
+ * Routes inbound WebSocket frames to persistence + the LangGraph bridge, and pushes AI
+ * output back over the socket. Diagram evaluation is submit-triggered only (PRD 6.2 / FR5).
+ */
+@Service
+public class InterviewFlowService {
+
+    private static final Logger log = LoggerFactory.getLogger(InterviewFlowService.class);
+
+    private final EventLogService eventLog;
+    private final AgentClient agent;
+    private final SessionSocketRegistry registry;
+    private final InterviewSessionRepository sessions;
+    private final ObjectMapper mapper;
+
+    public InterviewFlowService(EventLogService eventLog, AgentClient agent,
+                                SessionSocketRegistry registry, InterviewSessionRepository sessions,
+                                ObjectMapper mapper) {
+        this.eventLog = eventLog;
+        this.agent = agent;
+        this.registry = registry;
+        this.sessions = sessions;
+        this.mapper = mapper;
+    }
+
+    public void onInbound(UUID sessionId, InterviewMessage message) {
+        switch (message) {
+            case InterviewMessage.TranscriptPartial p ->
+                    eventLog.append(sessionId, p.type(), Map.of("text", p.text(), "ts", p.ts()));
+            case InterviewMessage.TranscriptFinal f -> handleTranscriptFinal(sessionId, f);
+            case InterviewMessage.DiagramSnapshot s ->
+                    eventLog.append(sessionId, s.type(), Map.of("nodes", s.nodes(), "edges", s.edges()));
+            case InterviewMessage.ChatMessage c ->
+                    eventLog.append(sessionId, c.type(),
+                            Map.of("sender", c.sender(), "text", c.text(), "kind", String.valueOf(c.kind())));
+            case InterviewMessage.DiagramLocked l -> handleSubmit(sessionId, l);
+            case InterviewMessage.SessionEnd e -> handleSessionEnd(sessionId, e);
+            case InterviewMessage.AiThinking ignored -> { /* server-originated only */ }
+            case InterviewMessage.DebriefReady ignored -> { /* server-originated only */ }
+        }
+    }
+
+    private void handleTranscriptFinal(UUID sessionId, InterviewMessage.TranscriptFinal f) {
+        eventLog.append(sessionId, f.type(), Map.of("text", f.text(), "ts", f.ts()));
+        try {
+            var turn = agent.sendTranscript(sessionId.toString(),
+                    new AgentDtos.TranscriptRequest(sessionId.toString(), f.text()));
+            if (turn != null && turn.text() != null && !turn.text().isBlank()) {
+                pushAiTurn(sessionId, turn.text(), turn.kind());
+            }
+        } catch (RuntimeException e) {
+            log.warn("Agent transcript call failed for session {}", sessionId, e);
+        }
+    }
+
+    @Transactional
+    public void handleSubmit(UUID sessionId, InterviewMessage.DiagramLocked locked) {
+        InterviewSession session = sessions.findById(sessionId)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown session " + sessionId));
+        String finalDiagramJson = writeJson(locked.finalDiagram());
+        session.submit(finalDiagramJson);
+        sessions.save(session);
+        eventLog.append(sessionId, locked.type(), Map.of("finalDiagram", locked.finalDiagram()));
+
+        registry.push(sessionId, new InterviewMessage.AiThinking(
+                "ai.thinking", sessionId.toString(), "review", now()));
+        try {
+            var review = agent.submitDiagram(sessionId.toString(),
+                    new AgentDtos.SubmitRequest(sessionId.toString(), readMap(finalDiagramJson)));
+            if (review != null) {
+                for (AgentDtos.Flaw flaw : review.flaws()) {
+                    pushAiTurn(sessionId, flaw.questionPrompt(), "flaw");
+                }
+            }
+        } catch (RuntimeException e) {
+            log.warn("Review node call failed for session {}", sessionId, e);
+        }
+    }
+
+    @Transactional
+    public void handleSessionEnd(UUID sessionId, InterviewMessage.SessionEnd end) {
+        eventLog.append(sessionId, end.type(), Map.of("ts", end.ts()));
+        InterviewSession session = sessions.findById(sessionId).orElse(null);
+        if (session == null) {
+            return;
+        }
+        try {
+            var debrief = agent.requestDebrief(sessionId.toString(),
+                    new AgentDtos.DebriefRequest(sessionId.toString(), List.of(), readMap(session.getReferenceSolution())));
+            if (debrief != null) {
+                session.end(writeJson(debrief));
+                sessions.save(session);
+                registry.push(sessionId, new InterviewMessage.DebriefReady(
+                        "debrief.ready", sessionId.toString(),
+                        debrief.strengths(), debrief.gaps(), debrief.unresolved(),
+                        debrief.referenceComparison(), now()));
+            }
+        } catch (RuntimeException e) {
+            log.warn("Debrief node call failed for session {}", sessionId, e);
+        }
+    }
+
+    public void replaySince(UUID sessionId, long lastSeq, WebSocketSession socket) {
+        eventLog.since(sessionId, lastSeq).forEach(event -> {
+            try {
+                socket.sendMessage(new TextMessage(mapper.writeValueAsString(Map.of(
+                        "type", event.getType(),
+                        "seq", event.getSeq(),
+                        "sessionId", sessionId.toString(),
+                        "payload", mapper.readTree(event.getPayload()),
+                        "ts", event.getTs().toEpochMilli()))));
+            } catch (Exception e) {
+                log.warn("Replay failed for session {} seq {}", sessionId, event.getSeq(), e);
+            }
+        });
+    }
+
+    private void pushAiTurn(UUID sessionId, String text, String kind) {
+        eventLog.append(sessionId, "chat.message", Map.of("sender", "ai", "text", text, "kind", kind));
+        registry.push(sessionId, new InterviewMessage.ChatMessage(
+                "chat.message", sessionId.toString(), "ai", text, kind, now()));
+    }
+
+    private static long now() {
+        return System.currentTimeMillis();
+    }
+
+    private String writeJson(Object value) {
+        try {
+            return mapper.writeValueAsString(value);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Cannot serialize", e);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> readMap(String json) {
+        if (json == null || json.isBlank()) {
+            return Map.of();
+        }
+        try {
+            return mapper.readValue(json, Map.class);
+        } catch (Exception e) {
+            return Map.of();
+        }
+    }
+}

@@ -1,0 +1,50 @@
+spring:
+  application:
+    name: ossature-backend
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${POSTGRES_DB:ossature}
+    username: ${POSTGRES_USER:ossature}
+    password: ${POSTGRES_PASSWORD:ossature}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate.format_sql: true
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+server:
+  port: ${BACKEND_PORT:8080}
+
+# --- Application-specific config (see com.ossature.interviewer.config.AppProperties) ---
+ossature:
+  agent:
+    base-url: ${AGENT_BASE_URL:http://localhost:8000}
+    connect-timeout: 5s
+    read-timeout: 60s
+  session:
+    # Persist a diagram snapshot on this cadence (PRD 6.2). Persistence/replay only.
+    snapshot-interval: 90s
+    # Interim summary cadence (PRD 6.4 / FR9).
+    summary-interval: 6m
+  cors:
+    allowed-origins:
+      - http://localhost:5173
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+
+logging:
+  level:
+    com.ossature.interviewer: DEBUG

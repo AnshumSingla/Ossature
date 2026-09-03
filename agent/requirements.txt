@@ -1,0 +1,18 @@
+# --- Web service ---
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+websockets==14.1
+pydantic==2.10.4
+pydantic-settings==2.7.0
+python-dotenv==1.0.1
+httpx==0.28.1
+
+# --- LangGraph / LangChain ---
+langgraph==0.2.60
+langchain==0.3.14
+langchain-core==0.3.29
+langchain-openai==0.2.14
+langchain-community==0.3.14
+
+# --- Observability ---
+structlog==24.4.0
