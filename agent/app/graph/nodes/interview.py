@@ -40,7 +40,12 @@ def interview_node(state: InterviewState) -> InterviewState:
         ]
     )
     kind = "probing" if ref else "clarifying"
-    return {"transcript": [{"sender": "ai", "text": reply.content, "kind": kind}]}
+    update: InterviewState = {"transcript": [{"sender": "ai", "text": reply.content, "kind": kind}]}
+    if kind == "clarifying":
+        # Relayed to the Council node so the reference reflects constraints the
+        # candidate actually established, not generic assumptions (PRD 5 step 5).
+        update["clarifying_qa"] = [{"candidateQuestion": last_candidate, "aiAnswer": reply.content}]
+    return update
 
 
 def _last_candidate_turn(state: InterviewState) -> str | None:

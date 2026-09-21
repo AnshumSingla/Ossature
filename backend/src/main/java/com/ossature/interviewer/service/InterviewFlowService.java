@@ -3,7 +3,9 @@ package com.ossature.interviewer.service;
 import tools.jackson.databind.ObjectMapper;
 import com.ossature.interviewer.agent.AgentClient;
 import com.ossature.interviewer.agent.AgentDtos;
+import com.ossature.interviewer.domain.InterimSummary;
 import com.ossature.interviewer.domain.InterviewSession;
+import com.ossature.interviewer.repo.InterimSummaryRepository;
 import com.ossature.interviewer.repo.InterviewSessionRepository;
 import com.ossature.interviewer.ws.SessionSocketRegistry;
 import com.ossature.interviewer.ws.protocol.InterviewMessage;
@@ -30,15 +32,17 @@ public class InterviewFlowService {
     private final AgentClient agent;
     private final SessionSocketRegistry registry;
     private final InterviewSessionRepository sessions;
+    private final InterimSummaryRepository interimSummaries;
     private final ObjectMapper mapper;
 
     public InterviewFlowService(EventLogService eventLog, AgentClient agent,
                                 SessionSocketRegistry registry, InterviewSessionRepository sessions,
-                                ObjectMapper mapper) {
+                                InterimSummaryRepository interimSummaries, ObjectMapper mapper) {
         this.eventLog = eventLog;
         this.agent = agent;
         this.registry = registry;
         this.sessions = sessions;
+        this.interimSummaries = interimSummaries;
         this.mapper = mapper;
     }
 
@@ -103,9 +107,12 @@ public class InterviewFlowService {
         if (session == null) {
             return;
         }
+        List<String> summaryContents = interimSummaries.findBySessionIdOrderByOrdinalAsc(sessionId).stream()
+                .map(InterimSummary::getContent)
+                .toList();
         try {
             var debrief = agent.requestDebrief(sessionId.toString(),
-                    new AgentDtos.DebriefRequest(sessionId.toString(), List.of(), readMap(session.getReferenceSolution())));
+                    new AgentDtos.DebriefRequest(sessionId.toString(), summaryContents, readMap(session.getReferenceSolution())));
             if (debrief != null) {
                 session.end(writeJson(debrief));
                 sessions.save(session);

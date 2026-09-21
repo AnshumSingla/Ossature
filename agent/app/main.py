@@ -78,7 +78,7 @@ def summary(session_id: str, req: SummaryRequest) -> SummaryResponse:
 
 @app.post("/agent/sessions/{session_id}/debrief", response_model=DebriefResponse)
 def debrief(session_id: str, req: DebriefRequest) -> DebriefResponse:
-    d = turns.run_debrief(session_id)
+    d = turns.run_debrief(session_id, req.interim_summaries)
     return DebriefResponse(
         strengths=d.get("strengths", []),
         gaps=d.get("gaps", []),

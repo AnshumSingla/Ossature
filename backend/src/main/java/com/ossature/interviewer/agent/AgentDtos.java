@@ -16,8 +16,6 @@ public final class AgentDtos {
 
     public record TranscriptRequest(String sessionId, String text) {}
 
-    public record ClarifyingRelay(String sessionId, String candidateQuestion, String aiAnswer) {}
-
     public record SubmitRequest(String sessionId, Map<String, Object> finalDiagram) {}
 
     public record Flaw(String summary, String questionPrompt, int priority) {}

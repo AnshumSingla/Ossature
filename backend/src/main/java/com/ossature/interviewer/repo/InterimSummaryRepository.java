@@ -7,4 +7,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface InterimSummaryRepository extends JpaRepository<InterimSummary, UUID> {
     List<InterimSummary> findBySessionIdOrderByOrdinalAsc(UUID sessionId);
+
+    long countBySessionId(UUID sessionId);
 }
