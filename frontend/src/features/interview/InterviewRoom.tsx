@@ -6,6 +6,25 @@ import { Whiteboard } from '../whiteboard/Whiteboard';
 import { DebriefPanel } from '../debrief/DebriefPanel';
 import { TranscriptPanel } from './TranscriptPanel';
 
+function micErrorMessage(code: string): string {
+  switch (code) {
+    case 'not-allowed':
+    case 'service-not-allowed':
+      return 'Microphone permission was denied. Allow it in the browser\'s site settings.';
+    case 'audio-capture':
+      return 'No microphone found, or it\'s in use by another app.';
+    case 'network':
+      return (
+        "Couldn't reach the browser's speech recognition service. This relies on the " +
+        "browser's own backend (Google's, for Chrome) - Brave and other privacy-hardened " +
+        'browsers strip that wiring out, so speech recognition never works there no matter ' +
+        'the network. Try Chrome (or Edge) instead.'
+      );
+    default:
+      return code;
+  }
+}
+
 export function InterviewRoom({ sessionId, prompt }: { sessionId: string; prompt: string }) {
   const {
     status,
@@ -77,6 +96,11 @@ export function InterviewRoom({ sessionId, prompt }: { sessionId: string; prompt
               End session
             </button>
           </div>
+          {stt.error && stt.error !== 'no-speech' && (
+            <p style={{ color: '#b00', fontSize: 13, margin: '6px 0 0' }}>
+              Mic error: {micErrorMessage(stt.error)}
+            </p>
+          )}
         </div>
         <div style={{ flex: 1, minHeight: 0 }}>
           {debrief ? (

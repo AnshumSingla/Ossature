@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { InterviewSocket } from '../api/socket';
-import type { AiTurnKind, ClientMessage, Diagram, ServerMessage } from '../types/protocol';
+import type {
+  AiTurnKind,
+  ClientMessage,
+  Diagram,
+  ReplayMessage,
+  ServerMessage,
+} from '../types/protocol';
 
 export interface ChatEntry {
   sender: 'candidate' | 'ai';
@@ -21,6 +27,32 @@ export interface UseInterviewSocket {
   endSession: () => void;
 }
 
+type DebriefMsg = Extract<ServerMessage, { type: 'debrief.ready' }>;
+
+/**
+ * Turns a replayed event (from a fresh connect or a reconnect resume, PRD FR12) into the
+ * same UI state a live push would produce. Chiefly: the session-opening AI turn is
+ * generated synchronously during session creation, before any socket exists, so it can
+ * *only* ever reach the client this way, never as a live `chat.message` push.
+ */
+function applyReplayedEvent(
+  msg: ReplayMessage,
+  setChat: (fn: (c: ChatEntry[]) => ChatEntry[]) => void,
+  setDebrief: (d: DebriefMsg) => void,
+): void {
+  if (msg.type === 'chat.message') {
+    const p = msg.payload as { sender?: 'candidate' | 'ai'; text?: string; kind?: AiTurnKind };
+    if (p.text) {
+      setChat((c) => [...c, { sender: p.sender ?? 'ai', text: p.text!, kind: p.kind, ts: msg.ts }]);
+    }
+    return;
+  }
+  if (msg.type === 'debrief.ready') {
+    const p = msg.payload as Omit<DebriefMsg, 'type' | 'sessionId' | 'ts'>;
+    setDebrief({ ...p, type: 'debrief.ready', sessionId: msg.sessionId, ts: msg.ts });
+  }
+}
+
 export function useInterviewSocket(sessionId: string): UseInterviewSocket {
   const socketRef = useRef<InterviewSocket | null>(null);
   const [status, setStatus] = useState<'connecting' | 'open' | 'closed'>('connecting');
@@ -33,7 +65,10 @@ export function useInterviewSocket(sessionId: string): UseInterviewSocket {
     const sock = new InterviewSocket(sessionId, {
       onStatusChange: setStatus,
       onMessage: (msg) => {
-        if ('seq' in msg) return; // replayed event; UI rebuilds from live turns
+        if ('seq' in msg) {
+          applyReplayedEvent(msg, setChat, setDebrief);
+          return;
+        }
         switch (msg.type) {
           case 'chat.message':
             setChat((c) => [

@@ -8,8 +8,9 @@ How the three services map onto the PRD, and what is implemented vs. stubbed in 
   bridge to the agent. It never calls an LLM. PRD §6.2.
 - **`agent/` (LangGraph + FastAPI)** owns the state graph and every LLM call. It is stateless
   over HTTP but keeps per-session graph state in-process (`app/turns.py`). PRD §6.3.
-- **`frontend/`** owns the whiteboard, on-device STT/TTS (Web Speech API) and the transcript
-  UI. Audio never leaves the browser. PRD §6.5.
+- **`frontend/`** owns the whiteboard, STT/TTS (Web Speech API) and the transcript UI. TTS
+  (`speechSynthesis`) is genuinely local. STT (`SpeechRecognition`) is **not** - see below;
+  the PRD §6.5 claim that both legs are "local, on-device" is incorrect and should be fixed.
 
 ## Request flow
 
@@ -86,6 +87,32 @@ With no `OPENAI_API_KEY`, `app/llm.py` returns a `FakeListChatModel`, so the who
 every endpoint run offline with deterministic placeholder text. The agent test suite runs in
 this mode.
 
+## Voice input reality check (frontend/src/hooks/useSpeech.ts)
+
+Confirmed by hand on 2026-09-22: **`SpeechRecognition` is not on-device.** Chrome ships a
+working implementation only because it calls Google's own speech-recognition backend over
+the network — audio genuinely leaves the machine. Two concrete consequences, both now
+handled in the hook:
+
+- **Chrome's recognizer silently stops after ~5s of no results** even with
+  `continuous: true`. If the browser can't reach Google's backend, this looks exactly like
+  "the mic turned on, took no input, and stopped by itself" — no error was ever surfaced to
+  the user before this fix. `useSpeechRecognition` now surfaces `error` (the DOM error code:
+  `'no-speech' | 'not-allowed' | 'audio-capture' | 'network' | ...`) and auto-restarts the
+  recognizer on a silent `onend` so continuous dictation doesn't require the candidate to
+  keep re-clicking "Start mic".
+- **Brave (and likely other privacy-hardened Chromium forks) strips this backend wiring
+  entirely** — `SpeechRecognition` exists in Brave but has nowhere to send audio, so it
+  fails with a `'network'` error every time, regardless of the user's actual network. This
+  isn't a bug to fix; it's a real product constraint. `InterviewRoom`'s mic-error message
+  now tells the candidate to switch to Chrome/Edge when this happens.
+
+**PRD impact:** §6.5's claim that both legs of voice I/O are "local, on-device" (and
+therefore free and privacy-preserving) is true for TTS but false for STT. If that matters
+for the cost/privacy story, the real fix is a genuinely local STT engine (e.g. a
+WASM-compiled Whisper build) rather than the browser's built-in API — worth a deliberate
+decision, not a silent scope change.
+
 ## Persistence (`backend/src/main/resources/db/migration`)
 
 - `V1__init.sql` — `users`, `questions`, `interview_sessions`, `session_events` (append-only
@@ -107,3 +134,5 @@ this mode.
   land (see PRD §8 cost notes).
 - Backend build needs JDK 21 (see README) — resolved for this dev box, but worth stating for
   anyone else cloning the repo.
+- **STT requires Chrome/Edge, not just "a browser"** — see "Voice input reality check" above.
+  Worth a UI browser-detection warning up front rather than only surfacing on mic error.
