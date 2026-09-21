@@ -1,6 +1,6 @@
 package com.ossature.interviewer.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.ossature.interviewer.agent.AgentClient;
 import com.ossature.interviewer.agent.AgentDtos;
 import com.ossature.interviewer.domain.InterviewSession;

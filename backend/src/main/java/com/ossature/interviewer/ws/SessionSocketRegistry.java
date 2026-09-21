@@ -1,6 +1,6 @@
 package com.ossature.interviewer.ws;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.ossature.interviewer.ws.protocol.InterviewMessage;
 import java.io.IOException;
 import java.util.Map;

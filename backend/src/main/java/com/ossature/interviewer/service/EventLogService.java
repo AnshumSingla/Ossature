@@ -1,13 +1,13 @@
 package com.ossature.interviewer.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ossature.interviewer.domain.SessionEvent;
 import com.ossature.interviewer.repo.SessionEventRepository;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 /** Append-only replay log with a monotonic per-session sequence (PRD 6.2, FR12). */
 @Service
@@ -40,7 +40,7 @@ public class EventLogService {
         }
         try {
             return mapper.writeValueAsString(payload);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new IllegalArgumentException("Cannot serialize event payload", e);
         }
     }

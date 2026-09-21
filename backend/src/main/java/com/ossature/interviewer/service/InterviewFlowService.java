@@ -1,6 +1,6 @@
 package com.ossature.interviewer.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.ossature.interviewer.agent.AgentClient;
 import com.ossature.interviewer.agent.AgentDtos;
 import com.ossature.interviewer.domain.InterviewSession;
@@ -81,7 +81,7 @@ public class InterviewFlowService {
         sessions.save(session);
         eventLog.append(sessionId, locked.type(), Map.of("finalDiagram", locked.finalDiagram()));
 
-        registry.push(sessionId, new InterviewMessage.AiThinking(
+        registry.push(sessionId.toString(), new InterviewMessage.AiThinking(
                 "ai.thinking", sessionId.toString(), "review", now()));
         try {
             var review = agent.submitDiagram(sessionId.toString(),
@@ -109,7 +109,7 @@ public class InterviewFlowService {
             if (debrief != null) {
                 session.end(writeJson(debrief));
                 sessions.save(session);
-                registry.push(sessionId, new InterviewMessage.DebriefReady(
+                registry.push(sessionId.toString(), new InterviewMessage.DebriefReady(
                         "debrief.ready", sessionId.toString(),
                         debrief.strengths(), debrief.gaps(), debrief.unresolved(),
                         debrief.referenceComparison(), now()));
@@ -136,7 +136,7 @@ public class InterviewFlowService {
 
     private void pushAiTurn(UUID sessionId, String text, String kind) {
         eventLog.append(sessionId, "chat.message", Map.of("sender", "ai", "text", text, "kind", kind));
-        registry.push(sessionId, new InterviewMessage.ChatMessage(
+        registry.push(sessionId.toString(), new InterviewMessage.ChatMessage(
                 "chat.message", sessionId.toString(), "ai", text, kind, now()));
     }
 
