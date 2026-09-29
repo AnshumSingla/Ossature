@@ -51,4 +51,13 @@ public class AgentClient {
         return http.post().uri("/agent/sessions/{id}/debrief", sessionId)
                 .body(req).retrieve().body(DebriefResponse.class);
     }
+
+    /**
+     * Purges the agent's working copy of session state once the backend holds the debrief
+     * durably - the agent's copy exists only to survive its own restarts mid-session, not
+     * as a second system of record (see agent/app/store.py).
+     */
+    public void endSession(String sessionId) {
+        http.delete().uri("/agent/sessions/{id}", sessionId).retrieve().toBodilessEntity();
+    }
 }

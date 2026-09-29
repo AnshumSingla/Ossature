@@ -6,9 +6,11 @@ LangGraph graph and every LLM call.
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 
-from app import turns
+from app import store, turns
 from app.config import get_settings
 from app.schemas import (
     DebriefRequest,
@@ -22,7 +24,14 @@ from app.schemas import (
     TurnResponse,
 )
 
-app = FastAPI(title="Ossature Interview Agent", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    store.ensure_schema()
+    yield
+
+
+app = FastAPI(title="Ossature Interview Agent", version="0.1.0", lifespan=lifespan)
 
 
 @app.get("/health")
@@ -85,3 +94,10 @@ def debrief(session_id: str, req: DebriefRequest) -> DebriefResponse:
         unresolved=d.get("unresolved", []),
         reference_comparison=d.get("reference_comparison", ""),
     )
+
+
+@app.delete("/agent/sessions/{session_id}", status_code=204, response_model=None)
+def end_session(session_id: str):
+    """Called by the backend once it holds the debrief durably - this session's working
+    copy (transcript, clarifying Q&A, reference solution) is no longer needed."""
+    turns.end_session(session_id)

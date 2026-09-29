@@ -120,6 +120,14 @@ public class InterviewFlowService {
                         "debrief.ready", sessionId.toString(),
                         debrief.strengths(), debrief.gaps(), debrief.unresolved(),
                         debrief.referenceComparison(), now()));
+                // Only once we hold the debrief durably: the agent's working copy of this
+                // session's state is no longer needed (PRD point 3 durability follow-up).
+                try {
+                    agent.endSession(sessionId.toString());
+                } catch (RuntimeException e) {
+                    log.warn("Agent session cleanup failed for {} (harmless, will just linger)",
+                            sessionId, e);
+                }
             }
         } catch (RuntimeException e) {
             log.warn("Debrief node call failed for session {}", sessionId, e);

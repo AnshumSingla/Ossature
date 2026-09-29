@@ -16,3 +16,7 @@ langchain-community==0.3.14
 
 # --- Observability ---
 structlog==24.4.0
+
+# --- Session-state durability (app/store.py) ---
+SQLAlchemy==2.0.52
+psycopg[binary]==3.2.3

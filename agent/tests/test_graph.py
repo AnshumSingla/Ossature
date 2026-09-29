@@ -4,13 +4,25 @@ from __future__ import annotations
 
 import time
 
+import pytest
 from fastapi.testclient import TestClient
 
-from app import turns
+from app import store, turns
 from app.graph.nodes.interview import interview_node
 from app.main import app
 
 client = TestClient(app)
+
+
+def _postgres_reachable() -> bool:
+    store._reset_breaker()  # ignore any cooldown tripped by earlier tests in this run
+    store.ensure_schema()
+    return not store._breaker_open()
+
+
+requires_postgres = pytest.mark.skipif(
+    not _postgres_reachable(), reason="Postgres not reachable (see agent/.env.example)"
+)
 
 
 def test_health_reports_stub_mode():
@@ -91,3 +103,22 @@ def test_debrief_prefers_caller_supplied_interim_summaries():
     )
     result = turns.run_debrief(sid, ["candidate proposed a websocket gateway"])
     assert set(result) >= {"strengths", "gaps", "unresolved", "reference_comparison"}
+
+
+@requires_postgres
+def test_session_state_survives_a_simulated_restart():
+    sid = "test-session-durability"
+    turns.start_session(sid, "Design a URL shortener", True, {"summary": "vetted ref"})
+    turns.add_candidate_turn(sid, "What is the expected QPS?")
+
+    # Simulate an agent process restart: wipe the in-memory cache only. Recovery must
+    # come from Postgres, not from anything still held in the Python process.
+    turns._SESSIONS.pop(sid, None)
+
+    recovered = turns.get_state(sid)
+    assert recovered["prompt"] == "Design a URL shortener"
+    assert len(recovered["transcript"]) == 3
+    assert recovered["reference_solution"] == {"summary": "vetted ref"}
+
+    turns.end_session(sid)
+    assert store.load(sid) is None

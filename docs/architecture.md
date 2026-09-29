@@ -113,6 +113,38 @@ for the cost/privacy story, the real fix is a genuinely local STT engine (e.g. a
 WASM-compiled Whisper build) rather than the browser's built-in API — worth a deliberate
 decision, not a silent scope change.
 
+## Agent session-state durability (`agent/app/store.py`)
+
+Added 2026-09-29. `app/turns.py`'s `_SESSIONS` dict is still the fast path for every read
+and write, but it's now backed by a Postgres table (`agent_sessions`, one row per session,
+whole `InterviewState` as JSONB) — the agent creates and owns this table itself at startup
+(`store.ensure_schema()`), separate from the backend's Flyway-managed schema, on the same
+physical Postgres instance (docker-compose `postgres` service) for operational simplicity
+rather than running a second database.
+
+This is a working-state cache, not a second system of record — the backend's Postgres
+already holds the durable transcript/diagram/debrief history. So the lifecycle is:
+- **Write-through**: every `_merge` (i.e. every turn, Council's result, Review, Summary)
+  saves the full state to Postgres, not just memory. If the agent process restarts,
+  `get_state` recovers from Postgres on the next request instead of silently starting a
+  blank session.
+- **Purged on session end**: the backend calls `DELETE /agent/sessions/{id}` (via
+  `AgentClient.endSession`) right after it durably persists the debrief in
+  `InterviewFlowService.handleSessionEnd` — at that point the agent's copy has no further
+  purpose.
+- **Best-effort, with a circuit breaker**: every `store.*` call is wrapped in try/except: if
+  Postgres is unreachable, callers fall back to in-memory-only behavior exactly as before
+  this existed (keeps `pytest` runnable with no database). A failed call trips a 30s
+  in-process breaker so an outage costs one ~1-2s connect attempt, not one per subsequent
+  call — without it, a down Postgres would inflate *every* agent request's latency for as
+  long as the outage lasted, not just the first one.
+
+This still doesn't solve running more than one agent instance (each has its own in-memory
+`_SESSIONS`, and two instances would both think they "own" a session) — that needs the
+in-memory dict replaced with real read-through-on-every-call behavior (or a proper LangGraph
+checkpointer), not just backed by durable storage. Fine for the current single-instance
+deployment.
+
 ## Persistence (`backend/src/main/resources/db/migration`)
 
 - `V1__init.sql` — `users`, `questions`, `interview_sessions`, `session_events` (append-only
@@ -125,10 +157,12 @@ decision, not a silent scope change.
 - **Auth** is not implemented; `HomePage` uses a hard-coded demo user id. PRD §6.2.
 - **Community question submission** — `QuestionBankService.submitForReview` throws; wire up
   `Question` creation + the owner review workflow. PRD §9 / Phase 4.
-- **Agent session state is in-process** — swap `app/turns.py`'s dict for a LangGraph
-  checkpointer (Postgres/Redis) before running more than one agent instance. This also caps
-  the Council background thread: if the agent restarts mid-generation, that thread and its
-  result are lost silently.
+- **Agent still can't run more than one instance** — session state now survives a restart
+  (see "Agent session-state durability" above), but each instance's in-memory `_SESSIONS`
+  dict is still authoritative between requests, so two instances would race. A background
+  Council thread's result is also still lost if the agent restarts *mid-generation*
+  specifically (the thread itself dies with the process) — the durability fix covers
+  everything already merged into state, not an in-flight thread.
 - **No rate limiting / abuse protection** on session creation — since Council generation costs
   real money per dynamic/community prompt, this is a real exposure until auth + rate limiting
   land (see PRD §8 cost notes).

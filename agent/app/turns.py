@@ -16,6 +16,7 @@ from __future__ import annotations
 import threading
 from typing import Any
 
+from app import store
 from app.graph.nodes.council import council_node
 from app.graph.nodes.debrief import debrief_node
 from app.graph.nodes.interview import interview_node
@@ -23,13 +24,24 @@ from app.graph.nodes.review import review_node
 from app.graph.nodes.summary import summary_node
 from app.graph.state import InterviewState
 
+# In-memory fast path. `store` (Postgres, best-effort) is what makes this survive a
+# restart or a cold cache - see app/store.py for why and app/main.py for the startup hook.
 _SESSIONS: dict[str, InterviewState] = {}
 _LOCK = threading.Lock()
 
 
 def get_state(session_id: str) -> InterviewState:
     with _LOCK:
-        state = _SESSIONS.setdefault(session_id, {"session_id": session_id, "transcript": []})
+        if session_id in _SESSIONS:
+            return dict(_SESSIONS[session_id])
+
+    # Cold cache (fresh process, or first time this instance has seen the session):
+    # recover from Postgres before falling back to an empty session.
+    recovered = store.load(session_id)
+    with _LOCK:
+        state = _SESSIONS.setdefault(
+            session_id, recovered or {"session_id": session_id, "transcript": []}
+        )
         return dict(state)
 
 
@@ -46,30 +58,42 @@ def _merge(session_id: str, update: dict[str, Any]) -> InterviewState:
             else:
                 merged[key] = value
         _SESSIONS[session_id] = merged
-        return dict(merged)
+        result = dict(merged)
+    store.save(session_id, result)
+    return result
 
 
 def start_session(
     session_id: str, prompt: str, has_vetted_reference: bool, reference_solution: dict
 ) -> InterviewState:
+    initial: InterviewState = {
+        "session_id": session_id,
+        "prompt": prompt,
+        "transcript": [],
+        "clarifying_qa": [],
+        "has_vetted_reference": has_vetted_reference,
+        "reference_solution": reference_solution or {},
+        "council_running": not has_vetted_reference,
+        "council_done": has_vetted_reference,
+        "interim_summaries": [],
+    }
     with _LOCK:
-        _SESSIONS[session_id] = {
-            "session_id": session_id,
-            "prompt": prompt,
-            "transcript": [],
-            "clarifying_qa": [],
-            "has_vetted_reference": has_vetted_reference,
-            "reference_solution": reference_solution or {},
-            "council_running": not has_vetted_reference,
-            "council_done": has_vetted_reference,
-            "interim_summaries": [],
-        }
+        _SESSIONS[session_id] = initial
+    store.save(session_id, initial)
 
     state = _merge(session_id, interview_node(get_state(session_id)))
 
     if state.get("council_running"):
         _spawn_council(session_id)
     return state
+
+
+def end_session(session_id: str) -> None:
+    """Called once the backend has confirmed the session ended and holds the durable
+    record itself - this working copy is no longer needed (see app/store.py)."""
+    with _LOCK:
+        _SESSIONS.pop(session_id, None)
+    store.delete_session(session_id)
 
 
 def _spawn_council(session_id: str) -> None:
