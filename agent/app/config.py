@@ -34,6 +34,10 @@ class Settings(BaseSettings):
     postgres_user: str = "ossature"
     postgres_password: str = "ossature"
 
+    # Shared secret the backend sends as X-Internal-Token (see app/security.py). Blank = no
+    # check, open for local dev - mirrors the backend's AGENT_SHARED_SECRET default.
+    internal_auth_token: str = ""
+
     @property
     def stub_mode(self) -> bool:
         """No API key -> run the graph with deterministic placeholder output."""

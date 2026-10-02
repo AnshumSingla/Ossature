@@ -12,7 +12,7 @@ public final class ApiDtos {
 
     private ApiDtos() {}
 
-    public record CreateSessionRequest(@NotNull UUID userId, @NotNull UUID questionId) {}
+    public record CreateSessionRequest(@NotNull UUID questionId) {}
 
     public record SessionView(UUID id, UUID questionId, String state, boolean diagramLocked,
                               Instant startedAt, Instant submittedAt, Instant endedAt) {

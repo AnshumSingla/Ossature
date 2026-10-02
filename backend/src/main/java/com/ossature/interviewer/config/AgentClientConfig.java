@@ -17,9 +17,13 @@ public class AgentClientConfig {
     // correctly.
     @Bean
     RestClient agentRestClient(AppProperties props) {
-        return RestClient.builder()
+        RestClient.Builder builder = RestClient.builder()
                 .baseUrl(props.agent().baseUrl())
-                .requestFactory(new SimpleClientHttpRequestFactory())
-                .build();
+                .requestFactory(new SimpleClientHttpRequestFactory());
+        String secret = props.agent().sharedSecret();
+        if (secret != null && !secret.isBlank()) {
+            builder.defaultHeader("X-Internal-Token", secret);
+        }
+        return builder.build();
     }
 }

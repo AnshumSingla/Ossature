@@ -1,7 +1,9 @@
 package com.ossature.interviewer.ws;
 
 import tools.jackson.databind.ObjectMapper;
+import com.ossature.interviewer.security.JwtService;
 import com.ossature.interviewer.service.InterviewFlowService;
+import com.ossature.interviewer.service.SessionService;
 import java.net.URI;
 import java.util.Map;
 import java.util.UUID;
@@ -16,9 +18,13 @@ import org.springframework.web.util.UriComponentsBuilder;
 import com.ossature.interviewer.ws.protocol.InterviewMessage;
 
 /**
- * Single interview endpoint ({@code /ws/interview?sessionId=...&lastSeq=...}).
+ * Single interview endpoint ({@code /ws/interview?sessionId=...&lastSeq=...&token=...}).
  * Persists every inbound frame to the replay log and hands domain-significant frames
  * (transcript.final, diagram.locked, session.end) to {@link InterviewFlowService}.
+ *
+ * Auth happens here, not via the Spring Security filter chain: browsers can't set a custom
+ * header on a WebSocket handshake, so the JWT travels as a {@code token} query param instead
+ * and is checked by hand against both validity and session ownership (PRD 6.2 follow-up).
  */
 @Component
 public class InterviewWebSocketHandler extends TextWebSocketHandler {
@@ -28,12 +34,16 @@ public class InterviewWebSocketHandler extends TextWebSocketHandler {
     private final ObjectMapper mapper;
     private final SessionSocketRegistry registry;
     private final InterviewFlowService flow;
+    private final JwtService jwt;
+    private final SessionService sessions;
 
     public InterviewWebSocketHandler(ObjectMapper mapper, SessionSocketRegistry registry,
-                                     InterviewFlowService flow) {
+                                     InterviewFlowService flow, JwtService jwt, SessionService sessions) {
         this.mapper = mapper;
         this.registry = registry;
         this.flow = flow;
+        this.jwt = jwt;
+        this.sessions = sessions;
     }
 
     @Override
@@ -44,11 +54,36 @@ public class InterviewWebSocketHandler extends TextWebSocketHandler {
             socket.close(CloseStatus.BAD_DATA.withReason("sessionId query param required"));
             return;
         }
+
+        UUID callerId = jwt.verify(params.get("token")).orElse(null);
+        if (callerId == null) {
+            socket.close(CloseStatus.POLICY_VIOLATION.withReason("missing or invalid token"));
+            return;
+        }
+        UUID sessionUuid;
+        try {
+            sessionUuid = UUID.fromString(sessionId);
+        } catch (IllegalArgumentException e) {
+            socket.close(CloseStatus.BAD_DATA.withReason("malformed sessionId"));
+            return;
+        }
+        UUID ownerId;
+        try {
+            ownerId = sessions.get(sessionUuid).getUserId();
+        } catch (IllegalArgumentException e) {
+            socket.close(CloseStatus.BAD_DATA.withReason("unknown session"));
+            return;
+        }
+        if (!callerId.equals(ownerId)) {
+            socket.close(CloseStatus.POLICY_VIOLATION.withReason("not your session"));
+            return;
+        }
+
         socket.getAttributes().put("sessionId", sessionId);
         registry.register(sessionId, socket);
 
         long lastSeq = parseLong(params.get("lastSeq"), 0L);
-        flow.replaySince(UUID.fromString(sessionId), lastSeq, socket);
+        flow.replaySince(sessionUuid, lastSeq, socket);
         log.info("WS connected for session {} (replay after seq {})", sessionId, lastSeq);
     }
 

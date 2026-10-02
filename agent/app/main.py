@@ -8,10 +8,11 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 
 from app import store, turns
 from app.config import get_settings
+from app.security import require_internal_token
 from app.schemas import (
     DebriefRequest,
     DebriefResponse,
@@ -33,6 +34,8 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="Ossature Interview Agent", version="0.1.0", lifespan=lifespan)
 
+_internal_only = Depends(require_internal_token)
+
 
 @app.get("/health")
 def health() -> dict:
@@ -40,7 +43,7 @@ def health() -> dict:
     return {"status": "ok", "stubMode": s.stub_mode}
 
 
-@app.post("/agent/sessions/{session_id}/start", response_model=TurnResponse)
+@app.post("/agent/sessions/{session_id}/start", response_model=TurnResponse, dependencies=[_internal_only])
 def start(session_id: str, req: StartRequest) -> TurnResponse:
     state = turns.start_session(
         session_id, req.prompt, req.has_vetted_reference, req.reference_solution
@@ -53,7 +56,7 @@ def start(session_id: str, req: StartRequest) -> TurnResponse:
     )
 
 
-@app.post("/agent/sessions/{session_id}/transcript", response_model=TurnResponse)
+@app.post("/agent/sessions/{session_id}/transcript", response_model=TurnResponse, dependencies=[_internal_only])
 def transcript(session_id: str, req: TranscriptRequest) -> TurnResponse:
     state = turns.add_candidate_turn(session_id, req.text)
     ai = turns.last_ai_turn(state) or {"text": "", "kind": "clarifying"}
@@ -64,7 +67,7 @@ def transcript(session_id: str, req: TranscriptRequest) -> TurnResponse:
     )
 
 
-@app.post("/agent/sessions/{session_id}/submit", response_model=ReviewResponse)
+@app.post("/agent/sessions/{session_id}/submit", response_model=ReviewResponse, dependencies=[_internal_only])
 def submit(session_id: str, req: SubmitRequest) -> ReviewResponse:
     flaws = turns.run_review(session_id, req.final_diagram)
     return ReviewResponse(
@@ -79,13 +82,13 @@ def submit(session_id: str, req: SubmitRequest) -> ReviewResponse:
     )
 
 
-@app.post("/agent/sessions/{session_id}/summary", response_model=SummaryResponse)
+@app.post("/agent/sessions/{session_id}/summary", response_model=SummaryResponse, dependencies=[_internal_only])
 def summary(session_id: str, req: SummaryRequest) -> SummaryResponse:
     content = turns.run_summary(session_id, req.ordinal)
     return SummaryResponse(ordinal=req.ordinal, content=content)
 
 
-@app.post("/agent/sessions/{session_id}/debrief", response_model=DebriefResponse)
+@app.post("/agent/sessions/{session_id}/debrief", response_model=DebriefResponse, dependencies=[_internal_only])
 def debrief(session_id: str, req: DebriefRequest) -> DebriefResponse:
     d = turns.run_debrief(session_id, req.interim_summaries)
     return DebriefResponse(
@@ -96,7 +99,7 @@ def debrief(session_id: str, req: DebriefRequest) -> DebriefResponse:
     )
 
 
-@app.delete("/agent/sessions/{session_id}", status_code=204, response_model=None)
+@app.delete("/agent/sessions/{session_id}", status_code=204, response_model=None, dependencies=[_internal_only])
 def end_session(session_id: str):
     """Called by the backend once it holds the debrief durably - this session's working
     copy (transcript, clarifying Q&A, reference solution) is no longer needed."""

@@ -145,6 +145,71 @@ in-memory dict replaced with real read-through-on-every-call behavior (or a prop
 checkpointer), not just backed by durable storage. Fine for the current single-instance
 deployment.
 
+## Auth (`backend/src/main/java/.../security`, `agent/app/security.py`)
+
+Added 2026-10-02. Email/password, stateless JWT (HS256, `jjwt`), no sessions/cookies:
+
+- `V4__add_password_auth.sql` adds a nullable `password_hash` on `users` (nullable because
+  V3's seeded demo user predates auth and never had a password — it can't log in until
+  someone signs up fresh).
+- `POST /api/auth/signup` / `POST /api/auth/login` are the only unauthenticated REST routes
+  (besides `GET /api/questions*`, which stays public browsing). Everything else requires
+  `Authorization: Bearer <token>`, enforced by `JwtAuthFilter` + `SecurityConfig`.
+- `SessionController` derives `userId` from the authenticated principal, never from the
+  request body — `CreateSessionRequest` no longer even has a `userId` field. `GET
+  /api/sessions/{id}` (and `/debrief`, `/summaries`) check the session's owner against the
+  caller and return 403 otherwise, so one user can't read another's transcript by guessing a
+  UUID.
+- **WebSocket auth is separate from the REST filter chain**: browsers can't set a custom
+  header on a WS handshake, so the JWT travels as a `token` query param instead, and
+  `InterviewWebSocketHandler.afterConnectionEstablished` validates it by hand (signature +
+  expiry) and checks the token's user owns the target session before registering the socket
+  — closing the gap where the WS endpoint could be driven directly, bypassing the REST
+  layer's auth entirely.
+- **Backend → agent bridge**: optional shared secret (`AGENT_SHARED_SECRET` /
+  `INTERNAL_AUTH_TOKEN`), sent as `X-Internal-Token` by `AgentClientConfig` and checked by
+  `agent/app/security.py`'s `require_internal_token` dependency on every agent route except
+  `/health`. Blank on either side (the default) means no check — same open-for-local-dev
+  posture as the Postgres durability layer, not real user-facing auth (the agent never
+  faces the candidate's browser directly; this just stops anything other than the backend
+  from driving it for free).
+- Frontend: `AuthProvider`/`useAuth` (`frontend/src/api/auth.tsx`) hold the token + user in
+  `localStorage`; `rest.ts` attaches `Authorization` to every call and `socket.ts` appends
+  `token` to the WS URL. `App.tsx`'s `RequireAuth` wrapper redirects to `/login` when there's
+  no signed-in user.
+
+Password rules: 8-72 chars (BCrypt silently ignores anything past 72 bytes), must contain
+at least one letter and one digit (`AuthDtos.SignupRequest`) - a floor against trivially
+guessable input, not full complexity scoring.
+
+## Rate limiting (`backend/src/main/java/.../service/RateLimiter.java`)
+
+Added 2026-10-02. In-memory, fixed-window - fine for the current single-instance
+deployment (same caveat as the agent's `_SESSIONS` cache: a real multi-instance setup
+needs this backed by something shared, e.g. Redis, instead). Applied to:
+
+- **`/api/auth/login` and `/api/auth/signup`** (brute-force guard): two independent
+  windows, per-email (5 / 5 min) and per-IP (20 / 5 min) - either tripping returns 429.
+  Deliberately does **not** trust `X-Forwarded-For` yet (nothing in front of this to strip
+  a client-supplied value), so per-IP uses `request.getRemoteAddr()` directly; revisit once
+  this sits behind a real reverse proxy.
+- **`POST /api/sessions`** (the original cost-exposure gap): 10 creations / hour per
+  authenticated user, since each one kicks off a real, possibly paid, Council LLM call
+  (PRD §8).
+
+Limits live in `ossature.rate-limit.*` (`application.yml`). `TooManyRequestsException` ->
+429 via `GlobalExceptionHandler`.
+
+One gotcha hit and fixed along the way: Spring Security blocking `@Valid` validation
+failures. `MethodArgumentNotValidException` isn't caught by the app's own
+`@RestControllerAdvice`, so Spring's built-in resolver handles it via an internal forward
+to `/error` - and since `/error` wasn't in `SecurityConfig`'s permitted paths, Security
+blocked *that* forward, turning what should have been a `400` with a validation-detail body
+into an opaque `403` with no body. Fixed by permitting `/error`.
+
+Still open: tying these limits to something other than per-process memory once this runs
+as more than one instance.
+
 ## Persistence (`backend/src/main/resources/db/migration`)
 
 - `V1__init.sql` — `users`, `questions`, `interview_sessions`, `session_events` (append-only
@@ -154,7 +219,6 @@ deployment.
 
 ## Known gaps / TODO
 
-- **Auth** is not implemented; `HomePage` uses a hard-coded demo user id. PRD §6.2.
 - **Community question submission** — `QuestionBankService.submitForReview` throws; wire up
   `Question` creation + the owner review workflow. PRD §9 / Phase 4.
 - **Agent still can't run more than one instance** — session state now survives a restart

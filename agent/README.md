@@ -34,6 +34,7 @@ app/
   schemas.py     request/response models (aliased to the backend's camelCase)
   llm.py         model factory; FakeListChatModel when no API key
   store.py       Postgres-backed session-state durability (best-effort; see docs/architecture.md)
+  security.py    optional shared-secret check on the backend->agent bridge (see docs/architecture.md)
   turns.py       per-session state + review/summary/debrief triggers
   graph/
     state.py     InterviewState (TypedDict with reducers)

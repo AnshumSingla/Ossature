@@ -27,6 +27,9 @@ ossature:
     base-url: ${AGENT_BASE_URL:http://localhost:8000}
     connect-timeout: 5s
     read-timeout: 60s
+    # Sent as X-Internal-Token on every backend->agent call. Blank = no check (local dev
+    # default, matches agent/app/security.py's own fallback) - set both sides in prod.
+    shared-secret: ${AGENT_SHARED_SECRET:}
   session:
     # Persist a diagram snapshot on this cadence (PRD 6.2). Persistence/replay only.
     snapshot-interval: 90s
@@ -35,6 +38,22 @@ ossature:
   cors:
     allowed-origins:
       - http://localhost:5173
+  auth:
+    # HS256 needs >= 256 bits; this dev default is long enough but is not a secret - set
+    # JWT_SECRET for anything beyond a local box.
+    jwt-secret: ${JWT_SECRET:dev-only-insecure-jwt-secret-change-me-before-deploying-anywhere}
+    jwt-expiry: 24h
+  rate-limit:
+    # Brute-force guard on /api/auth/login - two layers, since a per-email-only limit still
+    # lets one IP spray many emails, and a per-IP-only limit lets a botnet spread the guesses.
+    login-max-per-email: 5
+    login-window: 5m
+    login-max-per-ip: 20
+    login-ip-window: 5m
+    # Session creation triggers a real paid LLM call via Council (PRD §8 cost notes) -
+    # this is the actual cost-exposure gap, not just brute force.
+    session-create-max: 10
+    session-create-window: 1h
 
 management:
   endpoints:

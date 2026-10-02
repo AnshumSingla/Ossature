@@ -2,6 +2,7 @@
 // Tracks the last replayed `seq` so a reconnect resumes without data loss (NFR reliability).
 
 import type { ClientMessage, ReplayMessage, ServerMessage } from '../types/protocol';
+import { getToken } from './auth';
 
 const WS_BASE = import.meta.env.VITE_WS_URL ?? 'ws://localhost:8080/ws/interview';
 
@@ -26,7 +27,8 @@ export class InterviewSocket {
   connect(): void {
     this.closedByCaller = false;
     this.handlers.onStatusChange?.('connecting');
-    const url = `${WS_BASE}?sessionId=${encodeURIComponent(this.sessionId)}&lastSeq=${this.lastSeq}`;
+    const token = getToken() ?? '';
+    const url = `${WS_BASE}?sessionId=${encodeURIComponent(this.sessionId)}&lastSeq=${this.lastSeq}&token=${encodeURIComponent(token)}`;
     const ws = new WebSocket(url);
     this.ws = ws;
 
