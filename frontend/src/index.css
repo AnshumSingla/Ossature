@@ -320,7 +320,7 @@ button[type='submit']:hover:not(:disabled) {
   color: var(--text-muted);
 }
 
-/* --- Auth pages (glass card over the mountain backdrop) --- */
+/* --- Auth pages (glass card over the desert-night backdrop) --- */
 
 .auth-bg {
   position: relative;
@@ -330,14 +330,26 @@ button[type='submit']:hover:not(:disabled) {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  background: #9b9fdc;
+  background-color: #1a1038;
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  /* 1600px WebP, ~60KB (down from the original 2000px/306KB export) - purely decorative,
+     so on the rare browser without WebP support it just falls back to --auth-bg's plain
+     color rather than paying for a second fetched fallback image (tried a url()+image-set()
+     fallback first; Chrome's preload scanner fetched BOTH regardless of which one the
+     cascade actually picked, which defeated the point). */
+  background-image: url('/auth-bg.webp');
 }
 
-.mountain-backdrop {
+/* Uniform dark scrim: the photo swings from near-black to bright orange highlights,
+   so without this the card's contrast would depend on exactly where it lands on the
+   image. This flattens that out before the glass card's own blur/tint takes over. */
+.auth-bg::before {
+  content: '';
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
+  background: rgba(10, 6, 28, 0.45);
 }
 
 .glass-card {
@@ -348,11 +360,11 @@ button[type='submit']:hover:not(:disabled) {
   border-radius: 22px;
   text-align: center;
   color: #fff;
-  background: rgba(255, 255, 255, 0.14);
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-  box-shadow: 0 12px 40px rgba(26, 23, 64, 0.35);
+  background: rgba(20, 14, 38, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  backdrop-filter: blur(22px) saturate(140%);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
 }
 
 .glass-card h1 {

@@ -2,7 +2,6 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api/rest';
 import { useAuth } from '../api/auth';
-import { MountainBackdrop } from '../components/MountainBackdrop';
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -31,7 +30,6 @@ export function LoginPage() {
 
   return (
     <div className="auth-bg">
-      <MountainBackdrop />
       <div className="glass-card">
         <h1>Login</h1>
         <form onSubmit={submit}>
