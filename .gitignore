@@ -33,3 +33,9 @@ __pycache__/
 
 # --- Docker ---
 .pgdata/
+
+# --- Local-only, not shared on GitHub ---
+.claude/
+TODO.md
+whiteboard-interviewer-prd.md
+CLAUDE.md
