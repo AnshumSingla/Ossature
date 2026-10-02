@@ -13,15 +13,15 @@ export function HomePage() {
   };
 
   return (
-    <main style={{ padding: 24 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <main className="page">
+      <div className="app-header">
         <h1>Whiteboard Interviewer</h1>
-        <div>
-          <span style={{ marginRight: 12 }}>{user?.displayName}</span>
+        <div className="user">
+          <span>{user?.displayName}</span>
           <button onClick={logout}>Log out</button>
         </div>
       </div>
-      <p style={{ maxWidth: 640 }}>
+      <p className="muted">
         Pick a system design prompt. You&apos;ll talk through your design out loud while drawing it;
         the interviewer responds by voice. Everything spoken is transcribed on-device.
       </p>

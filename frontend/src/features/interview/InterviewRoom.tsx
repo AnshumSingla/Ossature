@@ -71,23 +71,23 @@ export function InterviewRoom({ sessionId, prompt }: { sessionId: string; prompt
   };
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', height: '100vh' }}>
-      <div style={{ borderRight: '1px solid #ddd', minWidth: 0 }}>
+    <div className="interview-layout">
+      <div style={{ minWidth: 0 }}>
         <Whiteboard />
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-        <div style={{ padding: 12, borderBottom: '1px solid #ddd' }}>
-          <div style={{ fontSize: 12, opacity: 0.6 }}>
+      <div className="interview-sidebar">
+        <div className="interview-toolbar">
+          <div className="session-meta">
             Session {sessionId.slice(0, 8)} · socket {status}
           </div>
-          <p style={{ margin: '6px 0', fontWeight: 600 }}>{prompt}</p>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <p className="prompt">{prompt}</p>
+          <div className="actions">
             {stt.supported ? (
               <button type="button" onClick={stt.listening ? stt.stop : stt.start}>
                 {stt.listening ? 'Stop mic' : 'Start mic'}
               </button>
             ) : (
-              <span style={{ color: '#b00' }}>Speech recognition unavailable in this browser</span>
+              <span className="error-text">Speech recognition unavailable in this browser</span>
             )}
             <button type="button" onClick={onSubmit} disabled={locked}>
               Submit diagram
@@ -97,7 +97,7 @@ export function InterviewRoom({ sessionId, prompt }: { sessionId: string; prompt
             </button>
           </div>
           {stt.error && stt.error !== 'no-speech' && (
-            <p style={{ color: '#b00', fontSize: 13, margin: '6px 0 0' }}>
+            <p className="error-text" style={{ fontSize: 13, margin: '6px 0 0' }}>
               Mic error: {micErrorMessage(stt.error)}
             </p>
           )}

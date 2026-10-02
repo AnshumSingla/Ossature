@@ -1,9 +1,11 @@
 // Token storage + the signed-in-user context (PRD 6.2 auth follow-up).
-// The JWT lives in localStorage; every REST call and the WS handshake attach it.
+// The JWT lives in localStorage (persists past closing the browser) or sessionStorage
+// (cleared when the tab closes) depending on "Remember me" at login.
 
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
-const TOKEN_KEY = 'ossature.token';
+const USER_KEY = 'ossature.user';
+const JWT_KEY = 'ossature.jwt';
 
 export interface AuthedUser {
   userId: string;
@@ -14,14 +16,18 @@ export interface AuthedUser {
 interface AuthState {
   user: AuthedUser | null;
   token: string | null;
-  login: (data: AuthedUser & { token: string }) => void;
+  login: (data: AuthedUser & { token: string }, remember?: boolean) => void;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
 
+function readStore(key: string): string | null {
+  return localStorage.getItem(key) ?? sessionStorage.getItem(key);
+}
+
 function loadUser(): AuthedUser | null {
-  const raw = localStorage.getItem(TOKEN_KEY);
+  const raw = readStore(USER_KEY);
   if (!raw) return null;
   try {
     return JSON.parse(raw) as AuthedUser;
@@ -32,23 +38,31 @@ function loadUser(): AuthedUser | null {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthedUser | null>(loadUser);
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem('ossature.jwt'));
+  const [token, setToken] = useState<string | null>(() => readStore(JWT_KEY));
+  const [remember, setRemember] = useState(true);
 
   useEffect(() => {
+    const store = remember ? localStorage : sessionStorage;
+    const other = remember ? sessionStorage : localStorage;
     if (user && token) {
-      localStorage.setItem(TOKEN_KEY, JSON.stringify(user));
-      localStorage.setItem('ossature.jwt', token);
+      store.setItem(USER_KEY, JSON.stringify(user));
+      store.setItem(JWT_KEY, token);
+      other.removeItem(USER_KEY);
+      other.removeItem(JWT_KEY);
     } else {
-      localStorage.removeItem(TOKEN_KEY);
-      localStorage.removeItem('ossature.jwt');
+      localStorage.removeItem(USER_KEY);
+      localStorage.removeItem(JWT_KEY);
+      sessionStorage.removeItem(USER_KEY);
+      sessionStorage.removeItem(JWT_KEY);
     }
-  }, [user, token]);
+  }, [user, token, remember]);
 
   const value = useMemo<AuthState>(
     () => ({
       user,
       token,
-      login: (data) => {
+      login: (data, rememberMe = true) => {
+        setRemember(rememberMe);
         setUser({ userId: data.userId, email: data.email, displayName: data.displayName });
         setToken(data.token);
       },
@@ -70,5 +84,5 @@ export function useAuth(): AuthState {
 }
 
 export function getToken(): string | null {
-  return localStorage.getItem('ossature.jwt');
+  return readStore(JWT_KEY);
 }

@@ -10,23 +10,19 @@ export function TranscriptPanel({
   thinkingNode: 'council' | 'review' | null;
 }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-      <h3 style={{ margin: '8px 12px' }}>Conversation</h3>
-      <div style={{ flex: 1, overflowY: 'auto', padding: '0 12px' }}>
+    <div className="transcript">
+      <h3>Conversation</h3>
+      <div className="transcript-scroll">
         {chat.map((e, i) => (
-          <p key={i} style={{ margin: '6px 0' }}>
-            <strong style={{ color: e.sender === 'ai' ? '#2563eb' : '#111' }}>
+          <p key={i} className={`chat-line ${e.sender === 'ai' ? 'ai' : 'candidate'}`}>
+            <span className="speaker">
               {e.sender === 'ai' ? `Interviewer${e.kind ? ` (${e.kind})` : ''}` : 'You'}:
-            </strong>{' '}
+            </span>{' '}
             {e.text}
           </p>
         ))}
-        {partial && <p style={{ margin: '6px 0', opacity: 0.5 }}>You: {partial}…</p>}
-        {thinkingNode && (
-          <p style={{ margin: '6px 0', fontStyle: 'italic', opacity: 0.6 }}>
-            Interviewer is thinking ({thinkingNode})…
-          </p>
-        )}
+        {partial && <p className="chat-line partial">You: {partial}…</p>}
+        {thinkingNode && <p className="chat-line thinking">Interviewer is thinking ({thinkingNode})…</p>}
       </div>
     </div>
   );
