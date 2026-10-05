@@ -1,5 +1,6 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from './api/auth';
+import { ThemeToggle } from './components/ThemeToggle';
 import { HomePage } from './pages/HomePage';
 import { LoginPage } from './pages/LoginPage';
 import { SessionPage } from './pages/SessionPage';
@@ -14,9 +15,18 @@ function RequireAuth({ children }: { children: React.ReactElement }) {
   return user ? children : <Navigate to="/login" replace />;
 }
 
+// The glass/mountain auth pages have their own self-contained look - the toggle only
+// makes sense once you're in the themed app proper.
+function GlobalThemeToggle() {
+  const { pathname } = useLocation();
+  if (pathname === '/login' || pathname === '/signup') return null;
+  return <ThemeToggle />;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
+      <GlobalThemeToggle />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />

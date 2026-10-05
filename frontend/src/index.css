@@ -1,18 +1,38 @@
 :root {
-  --text: #3f3b46;
-  --text-h: #08060d;
-  --text-muted: #6b6375;
-  --bg: #fdfcfe;
+  --text: #403a35;
+  --text-h: #140d08;
+  --text-muted: #726a62;
+  --bg: #fdfcfa;
   --bg-raised: #fff;
-  --border: #e5e4e7;
-  --accent: #6d28d9;
-  --accent-hover: #5b21b6;
-  --accent-bg: rgba(109, 40, 217, 0.08);
+  --bg-sunken: #f7f3ee;
+  --border: #e7e1d9;
+
+  /* Terracotta - deliberately not the purple/blue every AI-generated UI defaults to.
+     Reserved for primary actions and links, not every UI element. */
+  --accent: #c2410c;
+  --accent-hover: #9a3412;
+  --accent-bg: rgba(194, 65, 12, 0.08);
+
+  /* Warm stone, not cool slate: structural/secondary UI (nav, neutral badges) that isn't
+     "the brand color". */
+  --ink: #57534e;
+  --ink-bg: rgba(87, 83, 78, 0.07);
+
+  /* Fourth hue for the whiteboard's Client shape, standing in for blue without being blue. */
+  --rose: #be123c;
+  --rose-bg: rgba(190, 18, 60, 0.08);
+
+  --success: #15803d;
+  --success-bg: rgba(21, 128, 61, 0.1);
+  --warning: #b45309;
+  --warning-bg: rgba(180, 83, 9, 0.1);
   --danger: #b91c1c;
   --danger-bg: rgba(185, 28, 28, 0.08);
-  --shadow: rgba(16, 15, 20, 0.06) 0 1px 2px, rgba(16, 15, 20, 0.08) 0 4px 10px -4px;
+
+  --shadow: rgba(20, 13, 8, 0.06) 0 1px 2px, rgba(20, 13, 8, 0.08) 0 4px 10px -4px;
 
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
+  --display: 'Fraunces', Georgia, serif;
   --mono: ui-monospace, Consolas, monospace;
 
   font: 16px/1.5 var(--sans);
@@ -25,21 +45,57 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Dark mode applies either from the OS (prefers-color-scheme, unless the user picked
+   "light" explicitly) or from the manual toggle (data-theme="dark") - same variable set
+   either way, so every component below is written once and themes for free. */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --text: #cdd0d6;
-    --text-h: #f3f4f6;
-    --text-muted: #9ca3af;
-    --bg: #121216;
-    --bg-raised: #1a1b22;
-    --border: #2e303a;
-    --accent: #a78bfa;
-    --accent-hover: #c4b5fd;
-    --accent-bg: rgba(167, 139, 250, 0.12);
+  :root:not([data-theme='light']) {
+    --text: #d9d2c9;
+    --text-h: #f7f3ee;
+    --text-muted: #a69c90;
+    --bg: #15120f;
+    --bg-raised: #1e1a16;
+    --bg-sunken: #0f0d0b;
+    --border: #332d27;
+    --accent: #fb923c;
+    --accent-hover: #fdba74;
+    --accent-bg: rgba(251, 146, 60, 0.14);
+    --ink: #cbc2b7;
+    --ink-bg: rgba(203, 194, 183, 0.1);
+    --rose: #fb7185;
+    --rose-bg: rgba(251, 113, 133, 0.14);
+    --success: #4ade80;
+    --success-bg: rgba(74, 222, 128, 0.12);
+    --warning: #fbbf24;
+    --warning-bg: rgba(251, 191, 36, 0.12);
     --danger: #f87171;
     --danger-bg: rgba(248, 113, 113, 0.12);
     --shadow: rgba(0, 0, 0, 0.4) 0 1px 2px, rgba(0, 0, 0, 0.35) 0 4px 10px -4px;
   }
+}
+
+:root[data-theme='dark'] {
+  --text: #d9d2c9;
+  --text-h: #f7f3ee;
+  --text-muted: #a69c90;
+  --bg: #15120f;
+  --bg-raised: #1e1a16;
+  --bg-sunken: #0f0d0b;
+  --border: #332d27;
+  --accent: #fb923c;
+  --accent-hover: #fdba74;
+  --accent-bg: rgba(251, 146, 60, 0.14);
+  --ink: #cbc2b7;
+  --ink-bg: rgba(203, 194, 183, 0.1);
+  --rose: #fb7185;
+  --rose-bg: rgba(251, 113, 133, 0.14);
+  --success: #4ade80;
+  --success-bg: rgba(74, 222, 128, 0.12);
+  --warning: #fbbf24;
+  --warning-bg: rgba(251, 191, 36, 0.12);
+  --danger: #f87171;
+  --danger-bg: rgba(248, 113, 113, 0.12);
+  --shadow: rgba(0, 0, 0, 0.4) 0 1px 2px, rgba(0, 0, 0, 0.35) 0 4px 10px -4px;
 }
 
 *,
@@ -68,18 +124,27 @@ h4 {
   margin: 0 0 8px;
 }
 
+/* Fraunces for the two "voice" moments (brand + page titles) - sans for everything smaller,
+   so the serif reads as a deliberate accent rather than a wholesale font swap. */
+h1,
+h2 {
+  font-family: var(--display);
+  font-weight: 600;
+  letter-spacing: -0.3px;
+}
+
 h1 {
-  font-size: 32px;
-  letter-spacing: -0.5px;
+  font-size: 30px;
+  letter-spacing: -0.4px;
 }
 h2 {
-  font-size: 22px;
+  font-size: 21px;
 }
 h3 {
-  font-size: 17px;
+  font-size: 16px;
 }
 h4 {
-  font-size: 15px;
+  font-size: 14px;
 }
 
 p {
@@ -98,10 +163,38 @@ code {
   padding: 2px 5px;
 }
 
+.theme-toggle {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 50;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--bg-raised);
+  color: var(--text-muted);
+  box-shadow: var(--shadow);
+}
+
+.theme-toggle:hover {
+  color: var(--accent);
+}
+
 /* --- Layout helpers --- */
 
 .page {
   max-width: 880px;
+  margin: 0 auto;
+  padding: 32px 24px;
+  width: 100%;
+}
+
+.page-wide {
+  max-width: 1120px;
   margin: 0 auto;
   padding: 32px 24px;
   width: 100%;
@@ -118,20 +211,91 @@ code {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
+  flex-wrap: wrap;
+  padding-bottom: 16px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border);
   gap: 16px;
+}
+
+.app-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.app-brand-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  background: linear-gradient(155deg, var(--accent), #4c1d95);
+  color: #fff;
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 16px;
+  box-shadow: 0 3px 8px -2px rgba(109, 40, 217, 0.45);
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 22px;
+}
+
+/* Underlined tabs, not a pill - the nav sits inside the header's own border, so it reads
+   as part of the page's structure rather than a floating chrome widget. */
+.app-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.app-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.app-nav a {
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 13.5px;
+  font-weight: 500;
+  padding: 6px 12px;
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+}
+
+.app-nav a:hover {
+  color: var(--ink);
 }
 
 .app-header .user {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   color: var(--text-muted);
   font-size: 14px;
 }
 
+.app-header .user span {
+  white-space: nowrap;
+}
+
 .muted {
   color: var(--text-muted);
+}
+
+.lede {
+  font-size: 16.5px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  max-width: 62ch;
+  margin: 0 0 28px;
 }
 
 .error-text {
@@ -238,6 +402,88 @@ button[type='submit']:hover:not(:disabled) {
   letter-spacing: 0.04em;
 }
 
+/* Question bank grid (HomePage) - distinct from .question-list's row layout, which
+   Review/History still use since a horizontal row fits their content better. */
+
+.question-grid {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.q-card {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px;
+  background: var(--bg-raised);
+  box-shadow: var(--shadow);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.q-card:hover {
+  border-color: var(--accent);
+  box-shadow: var(--shadow);
+}
+
+.q-card h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.q-card p {
+  flex: 1;
+  margin: 0 0 16px;
+  color: var(--text-muted);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.q-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.q-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 4px 9px;
+  border-radius: 5px;
+  background: var(--ink-bg);
+  color: var(--ink);
+}
+
+/* Color encodes provenance, not decoration: community submissions earned their spot
+   through review, worth a different signal than the original seed set. */
+.q-badge.source-community {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.q-badge.source-generated {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.q-badge .vetted {
+  color: var(--success);
+}
+
+.q-card-footer button {
+  flex-shrink: 0;
+}
+
 /* --- Interview room --- */
 
 .interview-layout {
@@ -321,11 +567,11 @@ button[type='submit']:hover:not(:disabled) {
 }
 
 .wb-palette-swatch.shape-client {
-  color: #2563eb;
+  color: var(--rose);
 }
 
 .wb-palette-swatch.shape-datastore {
-  color: #16a34a;
+  color: var(--success);
   border-radius: 50% / 35%;
 }
 
@@ -333,6 +579,10 @@ button[type='submit']:hover:not(:disabled) {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.wb-hint {
+  font-size: 12px;
 }
 
 .btn-danger {
@@ -360,11 +610,11 @@ button[type='submit']:hover:not(:disabled) {
 }
 
 .shape-node.shape-client {
-  border-color: #2563eb;
+  border-color: var(--rose);
 }
 
 .shape-node.shape-datastore {
-  border-color: #16a34a;
+  border-color: var(--success);
   border-radius: 50% / 22%;
 }
 
@@ -389,11 +639,11 @@ button[type='submit']:hover:not(:disabled) {
 }
 
 .shape-node.shape-client .shape-node-icon {
-  color: #2563eb;
+  color: var(--rose);
 }
 
 .shape-node.shape-datastore .shape-node-icon {
-  color: #16a34a;
+  color: var(--success);
 }
 
 .shape-node-label {
@@ -453,31 +703,51 @@ button[type='submit']:hover:not(:disabled) {
   stroke-width: 2.5;
 }
 
-/* React Flow chrome, themed to match the app */
+/* React Flow chrome, themed to match the app.
+   !important throughout: reactflow/dist/style.css is imported from inside the Whiteboard
+   component, so depending on module graph order Vite can bundle it AFTER this file - same
+   specificity, later wins, and the library's own hardcoded white/gray silently overrides
+   these rules (confirmed live: the dark-mode controls/attribution stayed white). Forcing
+   it here is the correct fix, not a specificity arms race with a vendored stylesheet. */
 
 .react-flow__background {
-  background: var(--bg);
+  background: var(--bg) !important;
 }
 
 .react-flow__controls {
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow) !important;
   border-radius: 8px;
   overflow: hidden;
+  border: 1px solid var(--border);
 }
 
 .react-flow__controls-button {
-  background: var(--bg-raised);
-  border-bottom: 1px solid var(--border);
-  fill: var(--text-h);
+  background: var(--bg-raised) !important;
+  border-bottom: 1px solid var(--border) !important;
+  fill: var(--text-h) !important;
 }
 
 .react-flow__controls-button:hover {
-  background: var(--accent-bg);
+  background: var(--accent-bg) !important;
 }
 
 .react-flow__minimap {
   border-radius: 8px;
   box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.react-flow__minimap-mask {
+  fill: var(--bg) !important;
+  fill-opacity: 0.6 !important;
+}
+
+.react-flow__attribution {
+  background: var(--bg-raised) !important;
+}
+
+.react-flow__attribution a {
+  color: var(--text-muted) !important;
 }
 
 /* --- Transcript / chat --- */
@@ -507,21 +777,58 @@ button[type='submit']:hover:not(:disabled) {
   line-height: 1.45;
 }
 
-.chat-line .speaker {
-  font-weight: 600;
-}
-
-.chat-line.ai .speaker {
-  color: var(--accent);
-}
-
-.chat-line.partial {
-  opacity: 0.55;
-}
-
 .chat-line.thinking {
   font-style: italic;
   color: var(--text-muted);
+  text-align: center;
+  font-size: 13px;
+}
+
+.bubble-row {
+  display: flex;
+}
+
+.bubble-row.ai {
+  justify-content: flex-start;
+}
+
+.bubble-row.candidate {
+  justify-content: flex-end;
+}
+
+.bubble {
+  max-width: 85%;
+  padding: 9px 13px;
+  font-size: 14px;
+  line-height: 1.5;
+  border-radius: 14px;
+}
+
+.bubble-row.ai .bubble {
+  background: var(--bg-sunken);
+  color: var(--text-h);
+  border-bottom-left-radius: 3px;
+}
+
+.bubble-row.candidate .bubble {
+  background: var(--accent);
+  color: #fff;
+  border-bottom-right-radius: 3px;
+}
+
+.bubble-row.candidate .bubble.partial {
+  background: var(--accent-bg);
+  color: var(--text);
+}
+
+.bubble-kind {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  margin-bottom: 3px;
 }
 
 /* --- Auth pages (glass card over the desert-night backdrop) --- */
@@ -667,7 +974,7 @@ button[type='submit']:hover:not(:disabled) {
   margin: -6px 0 14px;
 }
 
-/* --- Debrief --- */
+/* --- Debrief: a verdict, not a document dump --- */
 
 .debrief {
   padding: 20px;
@@ -675,11 +982,97 @@ button[type='submit']:hover:not(:disabled) {
   overflow-y: auto;
 }
 
-.debrief section {
-  margin-bottom: 18px;
+.debrief-eyebrow {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 2px;
 }
 
-.debrief ul {
+.debrief h2 {
+  margin-bottom: 20px;
+}
+
+.debrief-section {
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  border-radius: 10px;
+  border-left: 3px solid var(--border);
+  background: var(--bg-sunken);
+}
+
+.debrief-section-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.debrief-section-head h4 {
+  margin: 0;
+  flex: 1;
+}
+
+.debrief-icon {
+  display: flex;
+  flex-shrink: 0;
+}
+
+.debrief-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.debrief-section ul {
   margin: 0;
   padding-left: 20px;
+}
+
+.debrief-section li {
+  margin-bottom: 2px;
+}
+
+.debrief-section.tone-strengths {
+  border-left-color: var(--success);
+}
+.debrief-section.tone-strengths .debrief-icon {
+  color: var(--success);
+}
+
+.debrief-section.tone-gaps {
+  border-left-color: var(--warning);
+}
+.debrief-section.tone-gaps .debrief-icon {
+  color: var(--warning);
+}
+
+.debrief-section.tone-unresolved {
+  border-left-color: var(--text-muted);
+}
+.debrief-section.tone-unresolved .debrief-icon {
+  color: var(--text-muted);
+}
+
+.debrief-quote {
+  margin-top: 20px;
+  padding: 16px 18px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+
+.debrief-quote h4 {
+  margin: 0 0 8px;
+}
+
+.debrief-quote p {
+  margin: 0;
+  font-family: var(--display);
+  font-style: italic;
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--text-h);
 }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { InterviewSocket } from '../api/socket';
+import { api } from '../api/rest';
 import type {
   AiTurnKind,
   ClientMessage,
@@ -60,6 +61,32 @@ export function useInterviewSocket(sessionId: string): UseInterviewSocket {
   const [thinkingNode, setThinkingNode] = useState<'council' | 'review' | null>(null);
   const [debrief, setDebrief] =
     useState<Extract<ServerMessage, { type: 'debrief.ready' }> | null>(null);
+  const debriefRef = useRef(debrief);
+  debriefRef.current = debrief;
+
+  // Fallback for when the live `debrief.ready` push never arrives (e.g. the socket dropped
+  // at the exact moment the backend finished generating it - the debrief is still saved
+  // server-side, the live page just never found out). Pulls it over plain REST instead.
+  const fetchDebriefIfMissing = useCallback(async () => {
+    if (debriefRef.current) return true;
+    const payload = await api.getDebrief(sessionId).catch(() => null);
+    if (payload && !debriefRef.current) {
+      setDebrief({ ...payload, type: 'debrief.ready', sessionId, ts: Date.now() });
+      return true;
+    }
+    return false;
+  }, [sessionId]);
+
+  // Covers reloading into (or navigating back into) a session that already ended in a
+  // previous visit - the debrief exists but no WS push will ever re-deliver it.
+  useEffect(() => {
+    api
+      .getSession(sessionId)
+      .then((s) => {
+        if (s.state === 'ENDED') fetchDebriefIfMissing();
+      })
+      .catch(() => {});
+  }, [sessionId, fetchDebriefIfMissing]);
 
   useEffect(() => {
     const sock = new InterviewSocket(sessionId, {
@@ -120,10 +147,17 @@ export function useInterviewSocket(sessionId: string): UseInterviewSocket {
     [sessionId],
   );
 
-  const endSession = useCallback(
-    () => send({ type: 'session.end', sessionId, ts: now() }),
-    [sessionId],
-  );
+  const endSession = useCallback(() => {
+    send({ type: 'session.end', sessionId, ts: now() });
+    // Poll for a few seconds in case the live push gets missed - debrief generation is a
+    // real LLM call, not instant, so give it a moment before giving up on each attempt.
+    let attempts = 0;
+    const interval = window.setInterval(async () => {
+      attempts += 1;
+      const found = await fetchDebriefIfMissing();
+      if (found || attempts >= 15) window.clearInterval(interval);
+    }, 2000);
+  }, [sessionId, fetchDebriefIfMissing]);
 
   return {
     status,

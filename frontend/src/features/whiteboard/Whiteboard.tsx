@@ -6,6 +6,7 @@ import ReactFlow, {
   Controls,
   MiniMap,
   ReactFlowProvider,
+  SelectionMode,
   useReactFlow,
   type Edge,
   type Node,
@@ -119,10 +120,16 @@ function WhiteboardInner() {
           ))}
         </div>
         <div className="wb-toolbar-actions">
-          {hasSelection && !locked && (
+          {hasSelection && !locked ? (
             <button type="button" onClick={deleteSelected} className="btn-danger">
               Delete selected
             </button>
+          ) : (
+            !locked && (
+              <span className="muted wb-hint">
+                Drag to select · Shift-click to add · right-click-drag to pan
+              </span>
+            )
           )}
           {locked && <span className="error-text">Diagram locked</span>}
         </div>
@@ -143,6 +150,15 @@ function WhiteboardInner() {
           elementsSelectable={!locked}
           connectionMode={ConnectionMode.Loose}
           deleteKeyCode={['Backspace', 'Delete']}
+          // Shift-click adds to the current selection; dragging on empty canvas draws a
+          // marquee box (SelectionMode.Partial so a shape only needs to be touched, not
+          // fully enclosed - makes it easy to rope in most of a diagram in one drag instead
+          // of shift-clicking every node individually). Panning moves to right-click-drag
+          // since left-drag is now the selection box.
+          multiSelectionKeyCode="Shift"
+          selectionOnDrag={!locked}
+          selectionMode={SelectionMode.Partial}
+          panOnDrag={[2]}
           snapToGrid
           snapGrid={[16, 16]}
           defaultEdgeOptions={{ type: 'labeled' }}
@@ -150,7 +166,12 @@ function WhiteboardInner() {
         >
           <Background variant={BackgroundVariant.Dots} gap={16} size={1} />
           <Controls showInteractive={false} />
-          <MiniMap pannable zoomable />
+          <MiniMap
+            pannable
+            zoomable
+            style={{ backgroundColor: 'var(--bg-sunken)' }}
+            nodeColor="var(--border)"
+          />
         </ReactFlow>
       </div>
     </div>

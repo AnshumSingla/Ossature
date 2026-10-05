@@ -13,20 +13,27 @@ export function HomePage() {
   };
 
   return (
-    <main className="page">
+    <main className="page-wide">
       <div className="app-header">
-        <h1>Whiteboard Interviewer</h1>
-        <div className="user">
+        <div className="app-brand">
+          <span className="app-brand-mark" aria-hidden="true">
+            W
+          </span>
+          <h1>Whiteboard Interviewer</h1>
+        </div>
+        <nav className="app-nav">
           <Link to="/history">History</Link>
           <Link to="/submit-question">Submit a question</Link>
           {user?.isOwner && <Link to="/review">Review submissions</Link>}
+        </nav>
+        <div className="user">
           <span>{user?.displayName}</span>
           <button onClick={logout}>Log out</button>
         </div>
       </div>
-      <p className="muted">
-        Pick a system design prompt. You&apos;ll talk through your design out loud while drawing it;
-        the interviewer responds by voice. Everything spoken is transcribed on-device.
+      <p className="lede">
+        Pick a prompt, then talk through your design out loud while you draw it — the
+        interviewer answers back by voice, same as the real thing.
       </p>
       <h2>Question bank</h2>
       <QuestionPicker onPick={start} />

@@ -14,14 +14,18 @@ export function TranscriptPanel({
       <h3>Conversation</h3>
       <div className="transcript-scroll">
         {chat.map((e, i) => (
-          <p key={i} className={`chat-line ${e.sender === 'ai' ? 'ai' : 'candidate'}`}>
-            <span className="speaker">
-              {e.sender === 'ai' ? `Interviewer${e.kind ? ` (${e.kind})` : ''}` : 'You'}:
-            </span>{' '}
-            {e.text}
-          </p>
+          <div key={i} className={`bubble-row ${e.sender}`}>
+            <div className="bubble">
+              {e.sender === 'ai' && e.kind && <span className="bubble-kind">{e.kind}</span>}
+              {e.text}
+            </div>
+          </div>
         ))}
-        {partial && <p className="chat-line partial">You: {partial}…</p>}
+        {partial && (
+          <div className="bubble-row candidate">
+            <div className="bubble partial">{partial}…</div>
+          </div>
+        )}
         {thinkingNode && <p className="chat-line thinking">Interviewer is thinking ({thinkingNode})…</p>}
       </div>
     </div>

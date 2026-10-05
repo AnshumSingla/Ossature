@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useInterviewSocket } from '../../hooks/useInterviewSocket';
 import { speak, useSpeechRecognition } from '../../hooks/useSpeech';
 import { useWhiteboardStore } from '../whiteboard/whiteboardStore';
@@ -85,28 +86,41 @@ export function InterviewRoom({ sessionId, prompt }: { sessionId: string; prompt
       <div className="interview-sidebar">
         <div className="interview-toolbar">
           <div className="session-meta">
-            Session {sessionId.slice(0, 8)} · socket {status}
+            <Link to="/">&larr; Home</Link> · Session {sessionId.slice(0, 8)} · socket {status}
           </div>
           <p className="prompt">{prompt}</p>
-          <div className="actions">
-            {stt.supported ? (
-              <button type="button" onClick={stt.listening ? stt.stop : stt.start}>
-                {stt.listening ? 'Stop mic' : 'Start mic'}
-              </button>
-            ) : (
-              <span className="error-text">Speech recognition unavailable in this browser</span>
-            )}
-            <button type="button" onClick={onSubmit} disabled={locked}>
-              Submit diagram
-            </button>
-            <button type="button" onClick={endSession}>
-              End session
-            </button>
-          </div>
-          {stt.error && stt.error !== 'no-speech' && (
-            <p className="error-text" style={{ fontSize: 13, margin: '6px 0 0' }}>
-              Mic error: {micErrorMessage(stt.error)}
-            </p>
+          {debrief ? (
+            <div className="actions">
+              <Link to="/">
+                <button type="button">Back to home</button>
+              </Link>
+              <Link to="/history">
+                <button type="button">Session history</button>
+              </Link>
+            </div>
+          ) : (
+            <>
+              <div className="actions">
+                {stt.supported ? (
+                  <button type="button" onClick={stt.listening ? stt.stop : stt.start}>
+                    {stt.listening ? 'Stop mic' : 'Start mic'}
+                  </button>
+                ) : (
+                  <span className="error-text">Speech recognition unavailable in this browser</span>
+                )}
+                <button type="button" onClick={onSubmit} disabled={locked}>
+                  Submit diagram
+                </button>
+                <button type="button" onClick={endSession}>
+                  End session
+                </button>
+              </div>
+              {stt.error && stt.error !== 'no-speech' && (
+                <p className="error-text" style={{ fontSize: 13, margin: '6px 0 0' }}>
+                  Mic error: {micErrorMessage(stt.error)}
+                </p>
+              )}
+            </>
           )}
         </div>
         <div style={{ flex: 1, minHeight: 0 }}>
