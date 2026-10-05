@@ -11,6 +11,7 @@ export interface AuthedUser {
   userId: string;
   email: string;
   displayName: string;
+  isOwner: boolean;
 }
 
 interface AuthState {
@@ -63,7 +64,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       token,
       login: (data, rememberMe = true) => {
         setRemember(rememberMe);
-        setUser({ userId: data.userId, email: data.email, displayName: data.displayName });
+        setUser({
+          userId: data.userId,
+          email: data.email,
+          displayName: data.displayName,
+          isOwner: data.isOwner,
+        });
         setToken(data.token);
       },
       logout: () => {

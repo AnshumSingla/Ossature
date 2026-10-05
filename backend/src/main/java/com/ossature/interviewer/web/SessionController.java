@@ -3,9 +3,11 @@ package com.ossature.interviewer.web;
 import com.ossature.interviewer.config.AppProperties;
 import com.ossature.interviewer.domain.InterviewSession;
 import com.ossature.interviewer.repo.InterimSummaryRepository;
+import com.ossature.interviewer.service.InterviewFlowService;
 import com.ossature.interviewer.service.RateLimiter;
 import com.ossature.interviewer.service.SessionService;
 import com.ossature.interviewer.service.TooManyRequestsException;
+import java.util.Map;
 import com.ossature.interviewer.web.dto.ApiDtos.CreateSessionRequest;
 import com.ossature.interviewer.web.dto.ApiDtos.SessionView;
 import jakarta.validation.Valid;
@@ -28,13 +30,15 @@ public class SessionController {
 
     private final SessionService sessions;
     private final InterimSummaryRepository summaries;
+    private final InterviewFlowService flow;
     private final RateLimiter rateLimiter;
     private final AppProperties.RateLimit limits;
 
     public SessionController(SessionService sessions, InterimSummaryRepository summaries,
-                             RateLimiter rateLimiter, AppProperties props) {
+                             InterviewFlowService flow, RateLimiter rateLimiter, AppProperties props) {
         this.sessions = sessions;
         this.summaries = summaries;
+        this.flow = flow;
         this.rateLimiter = rateLimiter;
         this.limits = props.rateLimit();
     }
@@ -74,6 +78,23 @@ public class SessionController {
         owned(id, auth);
         return summaries.findBySessionIdOrderByOrdinalAsc(id).stream()
                 .map(s -> s.getContent()).toList();
+    }
+
+    /** Final diagram JSON (nodes/edges), set once {@code diagram.locked} has been processed. */
+    @GetMapping("/{id}/diagram")
+    public String diagram(@PathVariable UUID id, Authentication auth) {
+        return owned(id, auth).getFinalDiagram();
+    }
+
+    /**
+     * Full transcript/event replay for a past session (history UI) - same frame shape the
+     * live WebSocket uses for reconnect replay, so the frontend can reuse one renderer for
+     * both (PRD Phase 4 "Session history / replay UI").
+     */
+    @GetMapping("/{id}/events")
+    public List<Map<String, Object>> events(@PathVariable UUID id, Authentication auth) {
+        owned(id, auth);
+        return flow.fullHistory(id);
     }
 
     private InterviewSession owned(UUID sessionId, Authentication auth) {

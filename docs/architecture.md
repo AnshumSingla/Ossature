@@ -217,19 +217,53 @@ as more than one instance.
 - `V2__seed_questions.sql` — four well-known prompts, no reference solutions attached yet.
 - Diagram/transcript/debrief payloads are stored as `jsonb`.
 
+## Community submission, owner review, session history/replay (Phase 4)
+
+Added 2026-10-05.
+
+- **Community submission**: `QuestionBankService.submitForReview` creates a
+  `PENDING`/`COMMUNITY` `Question` with an auto-generated, collision-safe slug.
+  `POST /api/questions` derives the submitter from the authenticated principal (never a
+  client-supplied field, same pattern as session creation). Frontend: `SubmitQuestionPage.tsx`.
+- **Owner review**: a config-driven role rather than a DB column, since this app has
+  exactly one kind of elevated user - `ossature.auth.owner-emails` (`OWNER_EMAILS`) is
+  checked against the JWT's email claim in `JwtAuthFilter`/`OwnerPolicy`, granting
+  `ROLE_OWNER`. Owner-only `GET /api/questions/pending` + `POST .../approve|reject`
+  (`SecurityConfig`'s owner matchers must come *before* the general `GET /api/questions/**`
+  permitAll rule - matcher order decides on first match). `AuthResponse` carries `isOwner`
+  so the frontend can conditionally show "Review submissions" (`ReviewQuestionsPage.tsx`) -
+  the backend enforces it either way, this is just UI gating.
+- **Session history/replay**: `GET /api/sessions/{id}/events` replays the full
+  `session_events` log in the exact frame shape (`{type, seq, sessionId, payload, ts}`) the
+  live WebSocket already uses for reconnect replay, so `SessionReplayPage.tsx` reuses
+  `TranscriptPanel` unmodified - one renderer for both the live and historical path.
+  `GET /api/sessions/{id}/diagram` returns the stored `final_diagram` jsonb. Both are
+  nullable-String-returning endpoints (Spring writes an empty body for a null `String`,
+  which breaks a naive `res.json()`) - the frontend's `jsonOrNull()` helper handles that.
+  `HistoryPage.tsx` lists past sessions by cross-referencing `GET /api/questions` client-side
+  for titles rather than adding a backend join.
+  - **Wire format gained a field**: `DiagramNode.shape` (component/datastore/client) is new
+    - added purely on the frontend/protocol side since the backend's `Diagram.nodes` is
+    `List<Object>` (untyped), so an extra per-node key round-trips losslessly with zero
+    backend changes. Without it, a replayed diagram couldn't know which icon to render per
+    node and would fall back to a generic box.
+  - `DiagramReadonly.tsx` reuses the same `ShapeNode`/`LabeledEdge` components the live
+    whiteboard uses, but is fully prop-driven (not the shared `whiteboardStore` singleton)
+    - rendering a past session's diagram must never touch the state a live session might
+    currently be using.
+  - Side fix while touching the whiteboard: `whiteboardStore` is a module-level singleton
+    shared across every page in the SPA, so without a reset, navigating from one session to
+    another (or back into one) would still show the previous board's shapes. `InterviewRoom`
+    now calls `reset()` on mount, keyed by `sessionId`.
+
 ## Known gaps / TODO
 
-- **Community question submission** — `QuestionBankService.submitForReview` throws; wire up
-  `Question` creation + the owner review workflow. PRD §9 / Phase 4.
 - **Agent still can't run more than one instance** — session state now survives a restart
   (see "Agent session-state durability" above), but each instance's in-memory `_SESSIONS`
   dict is still authoritative between requests, so two instances would race. A background
   Council thread's result is also still lost if the agent restarts *mid-generation*
   specifically (the thread itself dies with the process) — the durability fix covers
   everything already merged into state, not an in-flight thread.
-- **No rate limiting / abuse protection** on session creation — since Council generation costs
-  real money per dynamic/community prompt, this is a real exposure until auth + rate limiting
-  land (see PRD §8 cost notes).
 - Backend build needs JDK 21 (see README) — resolved for this dev box, but worth stating for
   anyone else cloning the repo.
 - **STT requires Chrome/Edge, not just "a browser"** — see "Voice input reality check" above.

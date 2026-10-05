@@ -43,6 +43,9 @@ ossature:
     # JWT_SECRET for anything beyond a local box.
     jwt-secret: ${JWT_SECRET:dev-only-insecure-jwt-secret-change-me-before-deploying-anywhere}
     jwt-expiry: 24h
+    # Comma-separated emails granted the owner role (question-review workflow, PRD 9).
+    # Blank by default - nobody is owner until this is set.
+    owner-emails: ${OWNER_EMAILS:}
   rate-limit:
     # Brute-force guard on /api/auth/login - two layers, since a per-email-only limit still
     # lets one IP spray many emails, and a per-IP-only limit lets a botnet spread the guesses.

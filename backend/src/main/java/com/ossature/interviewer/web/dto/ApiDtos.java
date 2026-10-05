@@ -23,13 +23,12 @@ public final class ApiDtos {
     }
 
     public record QuestionView(UUID id, String slug, String title, String prompt,
-                               String source, boolean hasVettedReference) {
+                               String source, String status, boolean hasVettedReference) {
         public static QuestionView of(Question q) {
             return new QuestionView(q.getId(), q.getSlug(), q.getTitle(), q.getPrompt(),
-                    q.getSource().name(), q.hasVettedReference());
+                    q.getSource().name(), q.getStatus().name(), q.hasVettedReference());
         }
     }
 
-    public record SubmitQuestionRequest(@NotBlank String title, @NotBlank String prompt,
-                                        @NotNull UUID submittedBy) {}
+    public record SubmitQuestionRequest(@NotBlank String title, @NotBlank String prompt) {}
 }

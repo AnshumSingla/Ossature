@@ -39,7 +39,14 @@ export function InterviewRoom({ sessionId, prompt }: { sessionId: string; prompt
   } = useInterviewSocket(sessionId);
 
   const stt = useSpeechRecognition();
-  const { toDiagram, setLocked, locked } = useWhiteboardStore();
+  const { toDiagram, setLocked, locked, reset } = useWhiteboardStore();
+
+  // The whiteboard store is a module-level singleton shared across every page in this SPA -
+  // without this, re-entering a session (or opening a different one) after visiting another
+  // session would still show the previous board's shapes.
+  useEffect(() => {
+    reset();
+  }, [sessionId, reset]);
 
   // Wire finalized utterances -> server (FR2).
   useEffect(() => {

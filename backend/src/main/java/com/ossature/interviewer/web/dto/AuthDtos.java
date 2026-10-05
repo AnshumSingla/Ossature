@@ -24,9 +24,9 @@ public final class AuthDtos {
 
     public record LoginRequest(@NotBlank @Email String email, @NotBlank String password) {}
 
-    public record AuthResponse(String token, UUID userId, String email, String displayName) {
-        public static AuthResponse of(String token, User u) {
-            return new AuthResponse(token, u.getId(), u.getEmail(), u.getDisplayName());
+    public record AuthResponse(String token, UUID userId, String email, String displayName, boolean isOwner) {
+        public static AuthResponse of(String token, User u, boolean isOwner) {
+            return new AuthResponse(token, u.getId(), u.getEmail(), u.getDisplayName(), isOwner);
         }
     }
 }

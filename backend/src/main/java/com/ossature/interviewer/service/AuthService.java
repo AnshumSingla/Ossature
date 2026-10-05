@@ -3,6 +3,7 @@ package com.ossature.interviewer.service;
 import com.ossature.interviewer.domain.User;
 import com.ossature.interviewer.repo.UserRepository;
 import com.ossature.interviewer.security.JwtService;
+import com.ossature.interviewer.security.OwnerPolicy;
 import com.ossature.interviewer.web.dto.AuthDtos.AuthResponse;
 import com.ossature.interviewer.web.dto.AuthDtos.LoginRequest;
 import com.ossature.interviewer.web.dto.AuthDtos.SignupRequest;
@@ -16,11 +17,13 @@ public class AuthService {
     private final UserRepository users;
     private final PasswordEncoder encoder;
     private final JwtService jwt;
+    private final OwnerPolicy ownerPolicy;
 
-    public AuthService(UserRepository users, PasswordEncoder encoder, JwtService jwt) {
+    public AuthService(UserRepository users, PasswordEncoder encoder, JwtService jwt, OwnerPolicy ownerPolicy) {
         this.users = users;
         this.encoder = encoder;
         this.jwt = jwt;
+        this.ownerPolicy = ownerPolicy;
     }
 
     @Transactional
@@ -31,7 +34,7 @@ public class AuthService {
         User user = new User(req.email(), req.displayName());
         user.setPasswordHash(encoder.encode(req.password()));
         users.save(user);
-        return AuthResponse.of(jwt.issue(user.getId(), user.getEmail()), user);
+        return AuthResponse.of(jwt.issue(user.getId(), user.getEmail()), user, ownerPolicy.isOwner(user.getEmail()));
     }
 
     public AuthResponse login(LoginRequest req) {
@@ -39,6 +42,6 @@ public class AuthService {
                 .filter(u -> u.getPasswordHash() != null)
                 .filter(u -> encoder.matches(req.password(), u.getPasswordHash()))
                 .orElseThrow(InvalidCredentialsException::new);
-        return AuthResponse.of(jwt.issue(user.getId(), user.getEmail()), user);
+        return AuthResponse.of(jwt.issue(user.getId(), user.getEmail()), user, ownerPolicy.isOwner(user.getEmail()));
     }
 }

@@ -29,6 +29,11 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
+                        // Owner-only review workflow (PRD 9) - must come before the general
+                        // GET permitAll below, since matcher order decides on first match.
+                        .requestMatchers(HttpMethod.GET, "/api/questions/pending").hasRole("OWNER")
+                        .requestMatchers(HttpMethod.POST, "/api/questions/*/approve", "/api/questions/*/reject")
+                            .hasRole("OWNER")
                         // GET /api/questions* is public browsing; everything else needs a user.
                         .requestMatchers(HttpMethod.GET, "/api/questions/**").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()

@@ -134,6 +134,19 @@ public class InterviewFlowService {
         }
     }
 
+    /** Full event log for a session, same shape as a WS replay frame (history/replay UI). */
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> fullHistory(UUID sessionId) {
+        return eventLog.since(sessionId, 0).stream()
+                .map(event -> Map.<String, Object>of(
+                        "type", event.getType(),
+                        "seq", event.getSeq(),
+                        "sessionId", sessionId.toString(),
+                        "payload", readMap(event.getPayload()),
+                        "ts", event.getTs().toEpochMilli()))
+                .toList();
+    }
+
     public void replaySince(UUID sessionId, long lastSeq, WebSocketSession socket) {
         eventLog.since(sessionId, lastSeq).forEach(event -> {
             try {

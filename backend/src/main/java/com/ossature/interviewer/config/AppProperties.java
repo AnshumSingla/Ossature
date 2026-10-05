@@ -16,7 +16,7 @@ public record AppProperties(Agent agent, Session session, Cors cors, Auth auth, 
 
     public record Cors(List<String> allowedOrigins) {}
 
-    public record Auth(String jwtSecret, Duration jwtExpiry) {}
+    public record Auth(String jwtSecret, Duration jwtExpiry, List<String> ownerEmails) {}
 
     public record RateLimit(
             int loginMaxPerEmail, Duration loginWindow,

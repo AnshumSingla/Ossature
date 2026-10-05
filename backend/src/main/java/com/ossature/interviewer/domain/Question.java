@@ -57,6 +57,26 @@ public class Question {
 
     protected Question() {}
 
+    /** Community submission - lands PENDING, only visible in the bank once approved. */
+    public Question(String slug, String title, String prompt, UUID submittedBy) {
+        this.slug = slug;
+        this.title = title;
+        this.prompt = prompt;
+        this.source = QuestionSource.COMMUNITY;
+        this.status = QuestionStatus.PENDING;
+        this.submittedBy = submittedBy;
+    }
+
+    public void approve() {
+        this.status = QuestionStatus.APPROVED;
+        this.updatedAt = Instant.now();
+    }
+
+    public void reject() {
+        this.status = QuestionStatus.REJECTED;
+        this.updatedAt = Instant.now();
+    }
+
     public UUID getId() {
         return id;
     }

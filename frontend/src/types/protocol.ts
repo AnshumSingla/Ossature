@@ -5,6 +5,9 @@ export interface DiagramNode {
   label: string;
   x: number;
   y: number;
+  /** Visual shape (component | datastore | client). Optional for backend-protocol
+   * compatibility - older/foreign payloads without it just render as a generic box. */
+  shape?: string;
 }
 
 export interface DiagramEdge {

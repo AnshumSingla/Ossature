@@ -37,12 +37,18 @@ public class JwtService {
 
     /** Empty when the token is missing, malformed, expired, or mis-signed. */
     public Optional<UUID> verify(String token) {
+        return verifyClaims(token).map(Claims::userId);
+    }
+
+    /** Same validity rules as {@link #verify}, but also exposes the email claim. */
+    public Optional<Claims> verifyClaims(String token) {
         try {
-            String subject = Jwts.parser().verifyWith(key).build()
-                    .parseSignedClaims(token).getPayload().getSubject();
-            return Optional.of(UUID.fromString(subject));
+            var payload = Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
+            return Optional.of(new Claims(UUID.fromString(payload.getSubject()), payload.get("email", String.class)));
         } catch (JwtException | IllegalArgumentException e) {
             return Optional.empty();
         }
     }
+
+    public record Claims(UUID userId, String email) {}
 }
