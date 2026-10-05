@@ -5,6 +5,7 @@ import ReactFlow, {
   ConnectionMode,
   Controls,
   MiniMap,
+  PanOnScrollMode,
   ReactFlowProvider,
   SelectionMode,
   useReactFlow,
@@ -159,6 +160,15 @@ function WhiteboardInner() {
           selectionOnDrag={!locked}
           selectionMode={SelectionMode.Partial}
           panOnDrag={[2]}
+          // Two-finger trackpad scroll (or a mouse wheel) pans; pinch zooms. Browsers report
+          // a real pinch gesture as a wheel event with ctrlKey set, which is also exactly
+          // what Ctrl+scroll looks like on a plain mouse - React Flow already branches on
+          // that internally, so panOnScroll handles both "move around" inputs in one prop
+          // and zoomOnPinch (on by default) covers both "zoom" inputs for free.
+          panOnScroll
+          panOnScrollMode={PanOnScrollMode.Free}
+          zoomOnScroll={false}
+          zoomOnPinch
           snapToGrid
           snapGrid={[16, 16]}
           defaultEdgeOptions={{ type: 'labeled' }}
