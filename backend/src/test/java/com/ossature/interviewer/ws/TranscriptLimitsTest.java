@@ -36,7 +36,7 @@ class TranscriptLimitsTest {
         var props = new AppProperties(null, null, null, null, null, limits);
         handler = new InterviewWebSocketHandler(new ObjectMapper(), mock(SessionSocketRegistry.class), flow,
                 mock(WsTicketService.class), mock(SessionService.class), new RateLimiter(), props);
-        when(socket.getAttributes()).thenReturn(Map.of("sessionId", SESSION.toString()));
+        when(socket.getAttributes()).thenReturn(Map.of("sessionId", SESSION.toString(), "userId", UUID.randomUUID()));
     }
 
     private static TextMessage frame(String type, String text) {

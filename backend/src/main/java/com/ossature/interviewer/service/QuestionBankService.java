@@ -62,14 +62,18 @@ public class QuestionBankService {
 
     /** Slugifies the title, appending a short suffix on collision instead of failing. */
     private String uniqueSlug(String title) {
+        // Row-level security hides other people's pending submissions, so a collision with one cannot be
+        // detected here and would fail on the unique index. A short random suffix makes that practically
+        // impossible, so submissions never depend on seeing rows they aren't allowed to see.
+        String suffix = Long.toHexString(java.util.concurrent.ThreadLocalRandom.current().nextLong(0x1000000L, 0xFFFFFFFFL));
         String base = NON_SLUG_CHARS.matcher(title.toLowerCase()).replaceAll("-").replaceAll("(^-+|-+$)", "");
         if (base.isBlank()) {
             base = "question";
         }
-        String slug = base;
-        int suffix = 2;
+        String slug = base + "-" + suffix;
+        int n = 2;
         while (questions.findBySlug(slug).isPresent()) {
-            slug = base + "-" + suffix++;
+            slug = base + "-" + suffix + "-" + n++;
         }
         return slug;
     }

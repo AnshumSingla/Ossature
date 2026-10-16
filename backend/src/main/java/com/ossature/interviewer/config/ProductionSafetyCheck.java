@@ -17,12 +17,25 @@ import org.springframework.stereotype.Component;
 public class ProductionSafetyCheck {
 
     static final String DEV_JWT_SECRET_PREFIX = "dev-only";
-    static final String DEV_DB_PASSWORD = "ossature";
+    /** The public local-development passwords for the schema owner, the backend role and the agent role. */
+    static final java.util.Set<String> DEV_DB_PASSWORDS = java.util.Set.of("ossature", "ossature_app", "ossature_agent");
+
+    /** The database accounts as configured: who migrates, who the app and agent connect as. */
+    public record DbSettings(String appUser, String appPassword, String migrationUser, String migrationPassword,
+                             String agentPassword) {}
     static final int MIN_JWT_SECRET_BYTES = 32;
 
+    private static boolean isDefaultOrBlank(String password) {
+        return password == null || password.isBlank() || DEV_DB_PASSWORDS.contains(password);
+    }
+
     public ProductionSafetyCheck(AppProperties props,
-                                 @Value("${spring.datasource.password:}") String dbPassword) {
-        List<String> problems = problems(props, dbPassword);
+                                 @Value("${spring.datasource.username:}") String appUser,
+                                 @Value("${spring.datasource.password:}") String appPassword,
+                                 @Value("${spring.flyway.user:}") String migrationUser,
+                                 @Value("${spring.flyway.password:}") String migrationPassword,
+                                 @Value("${spring.flyway.placeholders.agentDbPassword:}") String agentPassword) {
+        List<String> problems = problems(props, new DbSettings(appUser, appPassword, migrationUser, migrationPassword, agentPassword));
         if (!problems.isEmpty()) {
             throw new IllegalStateException(
                     "Refusing to start with the 'prod' profile - insecure configuration:\n  - "
@@ -30,7 +43,7 @@ public class ProductionSafetyCheck {
         }
     }
 
-    static List<String> problems(AppProperties props, String dbPassword) {
+    static List<String> problems(AppProperties props, DbSettings db) {
         List<String> problems = new ArrayList<>();
 
         String jwt = props.auth() == null ? null : props.auth().jwtSecret();
@@ -40,8 +53,18 @@ public class ProductionSafetyCheck {
             problems.add("JWT_SECRET is shorter than " + MIN_JWT_SECRET_BYTES + " bytes");
         }
 
-        if (dbPassword == null || dbPassword.isBlank() || DEV_DB_PASSWORD.equals(dbPassword)) {
-            problems.add("POSTGRES_PASSWORD is unset or still the development default");
+        if (isDefaultOrBlank(db.appPassword())) {
+            problems.add("APP_DB_PASSWORD is unset or still a development default");
+        }
+        if (isDefaultOrBlank(db.migrationPassword())) {
+            problems.add("POSTGRES_PASSWORD (the schema owner used for migrations) is unset or still the development default");
+        }
+        if (isDefaultOrBlank(db.agentPassword())) {
+            problems.add("AGENT_DB_PASSWORD is unset or still a development default");
+        }
+        if (db.appUser() != null && !db.appUser().isBlank() && db.appUser().equals(db.migrationUser())) {
+            problems.add("the application connects as the migration/owner database account, which bypasses "
+                    + "row-level security and least-privilege grants - use the restricted ossature_app account");
         }
 
         String agentSecret = props.agent() == null ? null : props.agent().sharedSecret();

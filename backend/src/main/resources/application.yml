@@ -4,8 +4,10 @@ spring:
 
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${POSTGRES_DB:ossature}
-    username: ${POSTGRES_USER:ossature}
-    password: ${POSTGRES_PASSWORD:ossature}
+    # The application connects as a restricted role (no superuser, owns nothing, row-level security
+    # applies to it). The schema owner below is used ONLY to run migrations. Role created by V7.
+    username: ${APP_DB_USER:ossature_app}
+    password: ${APP_DB_PASSWORD:ossature_app}
 
   jpa:
     hibernate:
@@ -17,6 +19,15 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+    # Migrations run as the schema owner (also the account docker-compose creates), separately from
+    # the restricted account the application uses.
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${POSTGRES_DB:ossature}
+    user: ${POSTGRES_USER:ossature}
+    password: ${POSTGRES_PASSWORD:ossature}
+    # Passwords for the roles V7 creates. Local defaults only - production refuses to start with them.
+    placeholders:
+      appDbPassword: ${APP_DB_PASSWORD:ossature_app}
+      agentDbPassword: ${AGENT_DB_PASSWORD:ossature_agent}
 
 server:
   port: ${BACKEND_PORT:8080}

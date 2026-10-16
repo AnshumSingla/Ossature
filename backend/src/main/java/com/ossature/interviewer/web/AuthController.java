@@ -1,6 +1,7 @@
 package com.ossature.interviewer.web;
 
 import com.ossature.interviewer.config.AppProperties;
+import com.ossature.interviewer.db.DbContext;
 import com.ossature.interviewer.service.AuthService;
 import com.ossature.interviewer.service.Emails;
 import com.ossature.interviewer.service.RateLimiter;
@@ -35,13 +36,14 @@ public class AuthController {
     @ResponseStatus(HttpStatus.CREATED)
     public AuthResponse signup(@Valid @RequestBody SignupRequest req, HttpServletRequest http) {
         guardSignupAttempt(http);
-        return auth.signup(req);
+        // Set before the service's transaction begins (see DbContext): only this scope may create accounts.
+        return DbContext.callInScope(DbContext.SCOPE_AUTH, () -> auth.signup(req));
     }
 
     @PostMapping("/login")
     public AuthResponse login(@Valid @RequestBody LoginRequest req, HttpServletRequest http) {
         guardLoginAttempt(req.email(), http);
-        return auth.login(req);
+        return DbContext.callInScope(DbContext.SCOPE_AUTH, () -> auth.login(req));
     }
 
     /**

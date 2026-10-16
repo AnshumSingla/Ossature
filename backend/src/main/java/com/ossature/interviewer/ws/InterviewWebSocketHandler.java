@@ -2,6 +2,7 @@ package com.ossature.interviewer.ws;
 
 import tools.jackson.databind.ObjectMapper;
 import com.ossature.interviewer.config.AppProperties;
+import com.ossature.interviewer.db.DbContext;
 import com.ossature.interviewer.security.WsTicketService;
 import com.ossature.interviewer.service.InterviewFlowService;
 import com.ossature.interviewer.service.RateLimiter;
@@ -79,7 +80,9 @@ public class InterviewWebSocketHandler extends TextWebSocketHandler {
         }
         UUID ownerId;
         try {
-            ownerId = sessions.get(sessionUuid).getUserId();
+            // Acting as the ticket holder: row-level security hides other users' sessions, so someone
+            // else's session is simply "unknown" here.
+            ownerId = DbContext.callAs(callerId, false, () -> sessions.get(sessionUuid).getUserId());
         } catch (IllegalArgumentException e) {
             socket.close(CloseStatus.BAD_DATA.withReason("unknown session"));
             return;
@@ -90,10 +93,11 @@ public class InterviewWebSocketHandler extends TextWebSocketHandler {
         }
 
         socket.getAttributes().put("sessionId", sessionId);
+        socket.getAttributes().put("userId", callerId);
         registry.register(sessionId, socket);
 
         long lastSeq = parseLong(params.get("lastSeq"), 0L);
-        flow.replaySince(sessionUuid, lastSeq, socket);
+        DbContext.runAs(callerId, false, () -> flow.replaySince(sessionUuid, lastSeq, socket));
         log.info("WS connected for session {} (replay after seq {})", sessionId, lastSeq);
     }
 
@@ -111,7 +115,8 @@ public class InterviewWebSocketHandler extends TextWebSocketHandler {
         if (!withinTranscriptLimits(sessionId, message)) {
             return;
         }
-        flow.onInbound(UUID.fromString(sessionId), message);
+        UUID userId = (UUID) socket.getAttributes().get("userId");
+        DbContext.runAs(userId, false, () -> flow.onInbound(UUID.fromString(sessionId), message));
     }
 
     /**

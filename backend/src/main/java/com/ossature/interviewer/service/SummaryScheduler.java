@@ -4,6 +4,7 @@ import com.ossature.interviewer.logging.LogSafe;
 import com.ossature.interviewer.agent.AgentClient;
 import com.ossature.interviewer.agent.AgentDtos;
 import com.ossature.interviewer.config.AppProperties;
+import com.ossature.interviewer.db.DbContext;
 import com.ossature.interviewer.domain.InterimSummary;
 import com.ossature.interviewer.domain.InterviewSession;
 import com.ossature.interviewer.domain.SessionEvent;
@@ -56,9 +57,13 @@ public class SummaryScheduler {
     @Scheduled(fixedDelay = 30_000)
     public void tick() {
         long intervalMs = props.session().summaryInterval().toMillis();
-        for (InterviewSession session : sessions.findByState(SessionState.ACTIVE)) {
+        // 'scheduler' scope may only LIST active sessions (to learn who owns them). The real work then
+        // runs as each session's owner, with exactly that user's access and no more.
+        List<InterviewSession> active =
+                DbContext.callInScope(DbContext.SCOPE_SCHEDULER, () -> sessions.findByState(SessionState.ACTIVE));
+        for (InterviewSession session : active) {
             try {
-                maybeSummarize(session, intervalMs);
+                DbContext.runAs(session.getUserId(), false, () -> maybeSummarize(session, intervalMs));
             } catch (RuntimeException e) {
                 LogSafe.warn(log, "Summary tick failed for session {}", e, session.getId());
             }
