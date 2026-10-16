@@ -12,6 +12,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy;
 
 /**
  * Stateless JWT auth (PRD 6.2 follow-up). No sessions/cookies - every request carries its
@@ -24,6 +25,15 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http, JwtAuthFilter jwtAuthFilter) throws Exception {
         http.csrf(csrf -> csrf.disable())
+                // This is a JSON API: it never serves a page, so the policy is "load nothing, be
+                // framed by no one". HSTS is only emitted on HTTPS responses (Spring ignores it
+                // on plain HTTP), so it is harmless in local development.
+                .headers(headers -> headers
+                        .contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'none'; frame-ancestors 'none'"))
+                        .frameOptions(frame -> frame.deny())
+                        .httpStrictTransportSecurity(hsts -> hsts.includeSubDomains(true).maxAgeInSeconds(31_536_000))
+                        .referrerPolicy(ref -> ref.policy(ReferrerPolicy.NO_REFERRER))
+                        .permissionsPolicyHeader(pp -> pp.policy("camera=(), microphone=(), geolocation=(), payment=()")))
                 // Picks up WebConfig's addCorsMappings via Spring MVC's HandlerMappingIntrospector -
                 // no separate CorsConfigurationSource bean needed.
                 .cors(Customizer.withDefaults())

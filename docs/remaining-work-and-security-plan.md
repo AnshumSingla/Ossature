@@ -20,6 +20,23 @@ confirm or refute with real tests.
 `docs/architecture.md` ("Local STT spike"). New follow-ups A4.11 (domain-term correction) and
 A4.12 (real-speech validation) added.
 
+**2026-10-16 - P1 batch done: H8, H12, H13, H14** (branch `feat/security-hardening-and-local-stt`).
+
+| ID | Status | What changed | Proof |
+|----|--------|--------------|-------|
+| H8 | Done | Login budgets are now per (account, source IP) = 5 / 5 min, plus a high account-wide cap (100 / h) so guessing spread over many addresses is still bounded, plus the existing per-IP cap. Signup has its own per-IP budget (10 / h) and shares nothing with login. A stranger can no longer exhaust the real user's login attempts, from their own address or by signing up with the victim's email. | 7 MockMvc tests incl. the attacker scenarios; mutation check (re-adding the shared key) makes the lockout test fail with 429 |
+| H12 | Done (login); signup answer accepted | Login does exactly one bcrypt comparison whether or not the account exists (dummy hash of the same cost), so response time no longer reveals registered emails. Signup still says "already exists" (usability); it is rate-limited per IP. | 4 unit tests; live timing: before 9.6 ms (unknown) vs 107.5 ms (real account) = 98 ms oracle; after 89.9 vs 98.5 ms = 8.6 ms |
+| H13 | Done (code); host config to apply | API: CSP `default-src 'none'; frame-ancestors 'none'`, X-Frame-Options DENY, nosniff, Referrer-Policy no-referrer, Permissions-Policy, HSTS (HTTPS only). Frontend: one source (`frontend/security-headers.mjs`) feeds `vite preview` and is emitted into every build as `dist/_headers` (Netlify/Cloudflare) and `dist/nginx-security-headers.conf`. CSP allows only self, the inline theme script by sha256, `wasm-unsafe-eval`, Google Fonts, the API/WS origins and Hugging Face (unless the model is self-hosted); the build fails if index.html gains another inline script. **Whoever serves `dist/` must apply the emitted headers.** | MockMvc header tests; built site served with the headers: page, fonts, voice model download + WebAssembly all work with no violations; injected inline script, inline handler, external script, string-eval and a request to an unlisted host are all blocked |
+| H14 | Done | Migration V6 removes the seeded `demo@ossature.local` user when it has no password and owns no data (kept otherwise). Nothing in the code referenced it. | Scratch-DB run of the full chain (v1-v6): removed on a fresh DB; kept when it owns a session or has a password; real users untouched |
+
+Also: `npm run build` now passes (removed an ignored `className` prop that caused a type error in
+`LabeledEdge.tsx`); the TODO item for TTS is ticked. Tests: backend 43, agent 19, frontend 20.
+
+Notes for the next steps: the per-IP limits still use the socket address (X-Forwarded-For is
+deliberately ignored), so behind a reverse proxy every user would share one budget until a trusted
+proxy header is configured - revisit when deploying (C6). The login rate limiter is in-memory
+(A1.5 moves it to shared storage for multiple instances).
+
 **2026-10-12 - A4: model changed to Whisper tiny.en, on-device only, preload on site open.**
 Bake-off of 5 models (table in `docs/architecture.md`): Whisper tiny.en best accuracy per MB/s
 (7.5 % WER, 86 % jargon vs Moonshine tiny 10.9 % / 77 %), at ~4x the latency (1.7-4 s per

@@ -19,12 +19,20 @@ public class AuthService {
     private final PasswordEncoder encoder;
     private final JwtService jwt;
     private final OwnerPolicy ownerPolicy;
+    /**
+     * A real bcrypt hash of a random value, computed once at the same cost as real ones. Login
+     * checks the supplied password against it when the account doesn't exist, so "unknown
+     * email" takes as long as "wrong password" and response time can't be used to discover
+     * which emails are registered.
+     */
+    private final String dummyHash;
 
     public AuthService(UserRepository users, PasswordEncoder encoder, JwtService jwt, OwnerPolicy ownerPolicy) {
         this.users = users;
         this.encoder = encoder;
         this.jwt = jwt;
         this.ownerPolicy = ownerPolicy;
+        this.dummyHash = encoder.encode(java.util.UUID.randomUUID().toString());
     }
 
     @Transactional
@@ -46,10 +54,15 @@ public class AuthService {
     }
 
     public AuthResponse login(LoginRequest req) {
-        User user = users.findByEmail(Emails.normalize(req.email()))
+        User account = users.findByEmail(Emails.normalize(req.email()))
                 .filter(u -> u.getPasswordHash() != null)
-                .filter(u -> encoder.matches(req.password(), u.getPasswordHash()))
-                .orElseThrow(InvalidCredentialsException::new);
+                .orElse(null);
+        // Always do exactly one bcrypt comparison, whether or not the account exists.
+        boolean matches = encoder.matches(req.password(), account != null ? account.getPasswordHash() : dummyHash);
+        if (account == null || !matches) {
+            throw new InvalidCredentialsException();
+        }
+        User user = account;
         return AuthResponse.of(jwt.issue(user.getId(), user.getEmail()), user, ownerPolicy.isOwner(user.getEmail()));
     }
 }

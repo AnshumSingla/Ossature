@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -129,6 +130,29 @@ class SecurityRulesWebTest {
         // The owner gets past security; this slice has no actuator endpoints, so 404 rather than 403.
         mvc.perform(get("/actuator/metrics").header("Authorization", token(stranger, "owner@x.com")))
                 .andExpect(status().isNotFound());
+    }
+
+    // ---- H13: security headers ----
+
+    @Test
+    void apiResponsesCarrySecurityHeaders() throws Exception {
+        // secure(true): HSTS is only ever emitted on HTTPS responses.
+        mvc.perform(get("/api/questions").secure(true))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'"))
+                .andExpect(header().string("X-Frame-Options", "DENY"))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(header().string("Referrer-Policy", "no-referrer"))
+                .andExpect(header().string("Strict-Transport-Security", "max-age=31536000 ; includeSubDomains"))
+                .andExpect(header().string("Permissions-Policy", org.hamcrest.Matchers.containsString("microphone=()")));
+    }
+
+    @Test
+    void errorResponsesCarryTheHeadersToo() throws Exception {
+        mvc.perform(get("/api/questions/pending"))
+                .andExpect(status().isForbidden())
+                .andExpect(header().exists("Content-Security-Policy"))
+                .andExpect(header().string("X-Frame-Options", "DENY"));
     }
 
     // ---- H7: input limits ----

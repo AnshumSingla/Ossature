@@ -34,8 +34,7 @@ public class AuthController {
     @PostMapping("/signup")
     @ResponseStatus(HttpStatus.CREATED)
     public AuthResponse signup(@Valid @RequestBody SignupRequest req, HttpServletRequest http) {
-        // Same guard as login - an unthrottled signup endpoint is just as easy to script.
-        guardLoginAttempt(req.email(), http);
+        guardSignupAttempt(http);
         return auth.signup(req);
     }
 
@@ -46,19 +45,33 @@ public class AuthController {
     }
 
     /**
-     * Two independent windows: per-email (stops repeated guesses against one account) and
-     * per-IP (stops one source spraying guesses across many emails) - either tripping blocks
-     * the call (PRD 6.2 auth follow-up).
+     * Three budgets, any one tripping blocks the call (see {@code AppProperties.RateLimit}):
+     * per (account, IP), per account overall, and per IP. The first is what stops one source
+     * guessing a password; keying it on the IP as well means a stranger's wrong guesses can
+     * only ever use up their own budget, never the real owner's.
      */
     private void guardLoginAttempt(String rawEmail, HttpServletRequest http) {
-        // Normalised so "A@x.com" and "a@x.com" share one attempt budget - otherwise changing
-        // the case of the email would hand an attacker a fresh set of guesses.
+        // Normalised so "A@x.com" and "a@x.com" share one budget - otherwise changing the case
+        // of the email would hand an attacker a fresh set of guesses.
         String email = Emails.normalize(rawEmail);
-        if (!rateLimiter.allow("login:email:" + email, limits.loginMaxPerEmail(), limits.loginWindow().toMillis())) {
-            throw new TooManyRequestsException("Too many attempts for this account - try again shortly");
+        String ip = clientIp(http);
+        if (!rateLimiter.allow("login:pair:" + email + "|" + ip, limits.loginMaxPerEmailAndIp(),
+                limits.loginEmailIpWindow().toMillis())) {
+            throw new TooManyRequestsException("Too many attempts for this account from your address - try again shortly");
         }
-        if (!rateLimiter.allow("login:ip:" + clientIp(http), limits.loginMaxPerIp(), limits.loginIpWindow().toMillis())) {
+        if (!rateLimiter.allow("login:email:" + email, limits.loginMaxPerEmailGlobal(),
+                limits.loginEmailGlobalWindow().toMillis())) {
+            throw new TooManyRequestsException("Too many attempts for this account - try again later");
+        }
+        if (!rateLimiter.allow("login:ip:" + ip, limits.loginMaxPerIp(), limits.loginIpWindow().toMillis())) {
             throw new TooManyRequestsException("Too many attempts from this address - try again shortly");
+        }
+    }
+
+    /** Signup is throttled per source IP only; it deliberately shares nothing with login's budgets. */
+    private void guardSignupAttempt(HttpServletRequest http) {
+        if (!rateLimiter.allow("signup:ip:" + clientIp(http), limits.signupMaxPerIp(), limits.signupWindow().toMillis())) {
+            throw new TooManyRequestsException("Too many sign-ups from this address - try again later");
         }
     }
 

@@ -47,12 +47,20 @@ ossature:
     # Blank by default - nobody is owner until this is set.
     owner-emails: ${OWNER_EMAILS:}
   rate-limit:
-    # Brute-force guard on /api/auth/login - two layers, since a per-email-only limit still
-    # lets one IP spray many emails, and a per-IP-only limit lets a botnet spread the guesses.
-    login-max-per-email: 5
-    login-window: 5m
+    # Brute-force guard on /api/auth/login, three layers (see AppProperties.RateLimit):
+    #  - per (account, source IP): stops one address hammering one account
+    #  - per account across all addresses: high, bounds distributed guessing without letting a
+    #    stranger lock the real user out with a handful of wrong passwords
+    #  - per IP: stops one address spraying many accounts
+    login-max-per-email-and-ip: 5
+    login-email-ip-window: 5m
+    login-max-per-email-global: 100
+    login-email-global-window: 1h
     login-max-per-ip: 20
     login-ip-window: 5m
+    # Signup: per source IP only (cheap to script, and it must not eat anyone's login budget).
+    signup-max-per-ip: 10
+    signup-window: 1h
     # Session creation triggers a real paid LLM call via Council (PRD §8 cost notes) -
     # this is the actual cost-exposure gap, not just brute force.
     session-create-max: 10
