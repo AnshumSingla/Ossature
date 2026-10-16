@@ -1,0 +1,14 @@
+[
+ "I would put a load balancer in front of several stateless API servers.",
+ "We can shard the database by user id and use consistent hashing to spread the load.",
+ "Reads are cached in Redis with a time to live of five minutes.",
+ "To keep the write path idempotent the client sends an idempotency key with every request.",
+ "Kafka gives us a durable log, and the consumers process events at least once.",
+ "A content delivery network serves the static assets close to the user.",
+ "The rate limiter uses a token bucket per API key, stored in Redis.",
+ "For the news feed we fan out on write for normal users, and fan out on read for celebrities.",
+ "Postgres is the source of truth, and Elasticsearch handles full text search.",
+ "We replicate across availability zones and use a circuit breaker to avoid cascading failures.",
+ "The URL shortener generates a base sixty two code from an auto incrementing counter.",
+ "WebSockets keep a persistent connection so the server can push messages with low latency."
+]
