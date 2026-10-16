@@ -16,7 +16,6 @@ export function LabeledEdge({
   targetPosition,
   label,
   data,
-  selected,
   markerEnd,
 }: EdgeProps<LabeledEdgeData>) {
   const [editing, setEditing] = useState(false);
@@ -45,7 +44,7 @@ export function LabeledEdge({
 
   return (
     <>
-      <BaseEdge id={id} path={edgePath} markerEnd={markerEnd} className={selected ? 'edge-selected' : ''} />
+      <BaseEdge id={id} path={edgePath} markerEnd={markerEnd} />
       <EdgeLabelRenderer>
         <div
           className="edge-label"

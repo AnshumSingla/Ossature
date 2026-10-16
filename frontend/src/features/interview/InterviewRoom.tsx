@@ -1,7 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useInterviewSocket } from '../../hooks/useInterviewSocket';
-import { speak, useSpeechRecognition } from '../../hooks/useSpeech';
+import { speak } from '../../hooks/useSpeech';
+import { useLocalSpeechRecognition } from '../../hooks/useLocalSpeech';
 import { useWhiteboardStore } from '../whiteboard/whiteboardStore';
 import { Whiteboard } from '../whiteboard/Whiteboard';
 import { DebriefPanel } from '../debrief/DebriefPanel';
@@ -10,17 +11,16 @@ import { TranscriptPanel } from './TranscriptPanel';
 function micErrorMessage(code: string): string {
   switch (code) {
     case 'not-allowed':
-    case 'service-not-allowed':
-      return 'Microphone permission was denied. Allow it in the browser\'s site settings.';
+      return "Microphone permission was denied. Allow it in the browser's site settings.";
     case 'audio-capture':
-      return 'No microphone found, or it\'s in use by another app.';
-    case 'network':
+      return "No microphone found, or it's in use by another app.";
+    case 'model-load-failed':
       return (
-        "Couldn't reach the browser's speech recognition service. This relies on the " +
-        "browser's own backend (Google's, for Chrome) - Brave and other privacy-hardened " +
-        'browsers strip that wiring out, so speech recognition never works there no matter ' +
-        'the network. Try Chrome (or Edge) instead.'
+        "Couldn't download the voice model (one time, then it's cached). Check your connection " +
+        'and press Start mic to try again, or type your answer instead.'
       );
+    case 'unsupported':
+      return "This browser can't run on-device voice input. Type your answer instead.";
     default:
       return code;
   }
@@ -32,14 +32,15 @@ export function InterviewRoom({ sessionId, prompt }: { sessionId: string; prompt
     chat,
     thinkingNode,
     debrief,
-    sendPartial,
     sendFinal,
     sendSnapshot,
     submitDiagram,
     endSession,
   } = useInterviewSocket(sessionId);
 
-  const stt = useSpeechRecognition();
+  const stt = useLocalSpeechRecognition();
+  const [typing, setTyping] = useState(false);
+  const [typed, setTyped] = useState('');
   const { toDiagram, setLocked, locked, reset } = useWhiteboardStore();
 
   // The whiteboard store is a module-level singleton shared across every page in this SPA -
@@ -56,11 +57,6 @@ export function InterviewRoom({ sessionId, prompt }: { sessionId: string; prompt
     });
   }, [stt, sendFinal]);
 
-  // Stream interim transcript (PRD 6.4 transcript.partial).
-  useEffect(() => {
-    if (stt.partial) sendPartial(stt.partial);
-  }, [stt.partial, sendPartial]);
-
   // Voice the interviewer's turns locally (FR2a).
   useEffect(() => {
     const last = chat[chat.length - 1];
@@ -72,6 +68,13 @@ export function InterviewRoom({ sessionId, prompt }: { sessionId: string; prompt
     const id = window.setInterval(() => sendSnapshot(toDiagram()), 90_000);
     return () => window.clearInterval(id);
   }, [sendSnapshot, toDiagram]);
+
+  const sendTyped = () => {
+    const text = typed.trim();
+    if (!text) return;
+    sendFinal(text);
+    setTyped('');
+  };
 
   const onSubmit = () => {
     submitDiagram(toDiagram());
@@ -102,11 +105,19 @@ export function InterviewRoom({ sessionId, prompt }: { sessionId: string; prompt
             <>
               <div className="actions">
                 {stt.supported ? (
-                  <button type="button" onClick={stt.listening ? stt.stop : stt.start}>
-                    {stt.listening ? 'Stop mic' : 'Start mic'}
+                  <button
+                    type="button"
+                    onClick={stt.listening ? stt.stop : stt.start}
+                    disabled={stt.loading}
+                  >
+                    {stt.loading
+                      ? `Preparing voice… ${Math.round(stt.progress * 100)}%`
+                      : stt.listening
+                        ? 'Stop mic'
+                        : 'Start mic'}
                   </button>
                 ) : (
-                  <span className="error-text">Speech recognition unavailable in this browser</span>
+                  <span className="error-text">Voice input unavailable in this browser</span>
                 )}
                 <button type="button" onClick={onSubmit} disabled={locked}>
                   Submit diagram
@@ -115,10 +126,51 @@ export function InterviewRoom({ sessionId, prompt }: { sessionId: string; prompt
                   End session
                 </button>
               </div>
+              {stt.loading && (
+                <p className="voice-status">
+                  Getting the on-device voice model ready (one-time download, cached afterwards).
+                  You can already type your answers below.
+                </p>
+              )}
+              {stt.listening && !stt.loading && (
+                <p className="voice-status" aria-live="polite">
+                  {stt.activity === 'hearing'
+                    ? 'Hearing you…'
+                    : stt.activity === 'transcribing'
+                      ? 'Transcribing…'
+                      : 'Listening - speak, then pause.'}
+                </p>
+              )}
               {stt.error && stt.error !== 'no-speech' && (
                 <p className="error-text" style={{ fontSize: 13, margin: '6px 0 0' }}>
                   Mic error: {micErrorMessage(stt.error)}
                 </p>
+              )}
+              <div className="voice-options">
+                <span>Voice runs on this device - audio never leaves your browser.</span>
+                <button type="button" className="link-button" onClick={() => setTyping((t) => !t)}>
+                  {typing || !stt.supported ? 'Hide typing box' : 'Type instead'}
+                </button>
+              </div>
+              {(typing || !stt.supported) && (
+                <form
+                  className="type-box"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    sendTyped();
+                  }}
+                >
+                  <input
+                    value={typed}
+                    onChange={(e) => setTyped(e.target.value)}
+                    placeholder="Type what you would say…"
+                    maxLength={1000}
+                    aria-label="Type your answer"
+                  />
+                  <button type="submit" disabled={!typed.trim()}>
+                    Send
+                  </button>
+                </form>
               )}
             </>
           )}
@@ -127,7 +179,7 @@ export function InterviewRoom({ sessionId, prompt }: { sessionId: string; prompt
           {debrief ? (
             <DebriefPanel debrief={debrief} />
           ) : (
-            <TranscriptPanel chat={chat} partial={stt.partial} thinkingNode={thinkingNode} />
+            <TranscriptPanel chat={chat} partial="" thinkingNode={thinkingNode} />
           )}
         </div>
       </div>

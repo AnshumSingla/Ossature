@@ -5,6 +5,28 @@ import type { Diagram, ReplayMessage } from '../types/protocol';
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080';
 
+// Carries the server's own explanation (Spring's ProblemDetail `detail`) so screens can show
+// the real reason a request failed instead of a guess.
+export class ApiError extends Error {
+  status: number;
+  detail?: string;
+
+  constructor(message: string, status: number, detail?: string) {
+    super(message);
+    this.status = status;
+    this.detail = detail;
+  }
+}
+
+/** What to show the user for a failed call: the server's own explanation, never a status code. */
+export function errorMessage(e: unknown): string {
+  if (e instanceof ApiError) {
+    return e.detail ?? 'The server couldn’t handle that request. Please try again in a moment.';
+  }
+  if (e instanceof TypeError) return 'Can’t reach the server. Check that the backend is running.';
+  return 'Something went wrong. Please try again.';
+}
+
 async function json<T>(path: string, init?: RequestInit): Promise<T> {
   const token = getToken();
   const res = await fetch(`${BASE}${path}`, {
@@ -15,7 +37,12 @@ async function json<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
   });
   if (!res.ok) {
-    throw new Error(`${init?.method ?? 'GET'} ${path} -> ${res.status}`);
+    const body = await res.json().catch(() => null);
+    throw new ApiError(
+      `${init?.method ?? 'GET'} ${path} -> ${res.status}`,
+      res.status,
+      typeof body?.detail === 'string' ? body.detail : undefined,
+    );
   }
   return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
 }
