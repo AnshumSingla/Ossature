@@ -1,5 +1,6 @@
 package com.ossature.interviewer.service;
 
+import com.ossature.interviewer.logging.LogSafe;
 import tools.jackson.databind.ObjectMapper;
 import com.ossature.interviewer.agent.AgentClient;
 import com.ossature.interviewer.agent.AgentDtos;
@@ -72,7 +73,7 @@ public class InterviewFlowService {
                 pushAiTurn(sessionId, turn.text(), turn.kind());
             }
         } catch (RuntimeException e) {
-            log.warn("Agent transcript call failed for session {}", sessionId, e);
+            LogSafe.warn(log, "Agent transcript call failed for session {}", e, sessionId);
         }
     }
 
@@ -96,7 +97,7 @@ public class InterviewFlowService {
                 }
             }
         } catch (RuntimeException e) {
-            log.warn("Review node call failed for session {}", sessionId, e);
+            LogSafe.warn(log, "Review node call failed for session {}", e, sessionId);
         }
     }
 
@@ -125,12 +126,11 @@ public class InterviewFlowService {
                 try {
                     agent.endSession(sessionId.toString());
                 } catch (RuntimeException e) {
-                    log.warn("Agent session cleanup failed for {} (harmless, will just linger)",
-                            sessionId, e);
+                    LogSafe.warn(log, "Agent session cleanup failed for {} (harmless, will just linger)", e, sessionId);
                 }
             }
         } catch (RuntimeException e) {
-            log.warn("Debrief node call failed for session {}", sessionId, e);
+            LogSafe.warn(log, "Debrief node call failed for session {}", e, sessionId);
         }
     }
 
@@ -157,7 +157,7 @@ public class InterviewFlowService {
                         "payload", mapper.readTree(event.getPayload()),
                         "ts", event.getTs().toEpochMilli()))));
             } catch (Exception e) {
-                log.warn("Replay failed for session {} seq {}", sessionId, event.getSeq(), e);
+                LogSafe.warn(log, "Replay failed for session {} seq {}", e, sessionId, event.getSeq());
             }
         });
     }

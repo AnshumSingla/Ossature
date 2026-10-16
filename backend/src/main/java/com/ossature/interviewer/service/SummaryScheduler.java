@@ -1,5 +1,6 @@
 package com.ossature.interviewer.service;
 
+import com.ossature.interviewer.logging.LogSafe;
 import com.ossature.interviewer.agent.AgentClient;
 import com.ossature.interviewer.agent.AgentDtos;
 import com.ossature.interviewer.config.AppProperties;
@@ -59,7 +60,7 @@ public class SummaryScheduler {
             try {
                 maybeSummarize(session, intervalMs);
             } catch (RuntimeException e) {
-                log.warn("Summary tick failed for session {}", session.getId(), e);
+                LogSafe.warn(log, "Summary tick failed for session {}", e, session.getId());
             }
         }
     }

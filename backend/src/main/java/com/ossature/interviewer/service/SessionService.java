@@ -1,5 +1,6 @@
 package com.ossature.interviewer.service;
 
+import com.ossature.interviewer.logging.LogSafe;
 import tools.jackson.databind.ObjectMapper;
 import com.ossature.interviewer.agent.AgentClient;
 import com.ossature.interviewer.agent.AgentDtos;
@@ -69,7 +70,7 @@ public class SessionService {
                         Map.of("sender", "ai", "text", opening.text(), "kind", opening.kind()));
             }
         } catch (RuntimeException e) {
-            log.warn("Agent start failed for session {}; continuing without opening turn", session.getId(), e);
+            LogSafe.warn(log, "Agent start failed for session {}; continuing without opening turn", e, session.getId());
         }
         return session;
     }

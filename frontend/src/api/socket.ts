@@ -2,7 +2,7 @@
 // Tracks the last replayed `seq` so a reconnect resumes without data loss (NFR reliability).
 
 import type { ClientMessage, ReplayMessage, ServerMessage } from '../types/protocol';
-import { getToken } from './auth';
+import { api } from './rest';
 
 const WS_BASE = import.meta.env.VITE_WS_URL ?? 'ws://localhost:8080/ws/interview';
 
@@ -24,11 +24,33 @@ export class InterviewSocket {
     this.handlers = handlers;
   }
 
+  /**
+   * Opens the socket. Browsers can't send an Authorization header on a WebSocket handshake, and
+   * putting the login token in the URL would leak it into logs and history, so each connection
+   * (including every reconnect) first fetches a one-time, short-lived ticket over normal
+   * authenticated REST and puts only that in the URL.
+   */
   connect(): void {
     this.closedByCaller = false;
     this.handlers.onStatusChange?.('connecting');
-    const token = getToken() ?? '';
-    const url = `${WS_BASE}?sessionId=${encodeURIComponent(this.sessionId)}&lastSeq=${this.lastSeq}&token=${encodeURIComponent(token)}`;
+    void api
+      .wsTicket(this.sessionId)
+      .then(({ ticket }) => {
+        if (this.closedByCaller) return; // the room was left while the ticket was in flight
+        this.open(ticket);
+      })
+      .catch(() => this.scheduleReconnect());
+  }
+
+  private scheduleReconnect(): void {
+    this.handlers.onStatusChange?.('closed');
+    if (this.closedByCaller) return;
+    setTimeout(() => this.connect(), this.retryMs);
+    this.retryMs = Math.min(this.retryMs * 2, 15000);
+  }
+
+  private open(ticket: string): void {
+    const url = `${WS_BASE}?sessionId=${encodeURIComponent(this.sessionId)}&lastSeq=${this.lastSeq}&ticket=${encodeURIComponent(ticket)}`;
     const ws = new WebSocket(url);
     this.ws = ws;
 
@@ -45,13 +67,7 @@ export class InterviewSocket {
       this.handlers.onMessage(msg);
     };
 
-    ws.onclose = () => {
-      this.handlers.onStatusChange?.('closed');
-      if (!this.closedByCaller) {
-        setTimeout(() => this.connect(), this.retryMs);
-        this.retryMs = Math.min(this.retryMs * 2, 15000);
-      }
-    };
+    ws.onclose = () => this.scheduleReconnect();
   }
 
   send(msg: ClientMessage): void {

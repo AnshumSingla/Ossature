@@ -16,6 +16,9 @@ import org.springframework.stereotype.Component;
 @Component
 public class JwtService {
 
+    /** Tokens issued before the type claim existed have none and count as access tokens. */
+    private static final String ACCESS = "access";
+
     private final SecretKey key;
     private final long expiryMillis;
 
@@ -29,6 +32,7 @@ public class JwtService {
         return Jwts.builder()
                 .subject(userId.toString())
                 .claim("email", email)
+                .claim("typ", ACCESS)
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plusMillis(expiryMillis)))
                 .signWith(key)
@@ -44,6 +48,10 @@ public class JwtService {
     public Optional<Claims> verifyClaims(String token) {
         try {
             var payload = Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
+            String type = payload.get("typ", String.class);
+            if (type != null && !ACCESS.equals(type)) {
+                return Optional.empty(); // e.g. a WebSocket ticket must never authenticate REST calls
+            }
             return Optional.of(new Claims(UUID.fromString(payload.getSubject()), payload.get("email", String.class)));
         } catch (JwtException | IllegalArgumentException e) {
             return Optional.empty();

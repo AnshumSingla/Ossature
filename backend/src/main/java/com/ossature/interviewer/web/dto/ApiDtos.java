@@ -33,6 +33,9 @@ public final class ApiDtos {
 
     // The prompt is fed to an LLM for every session that uses the question, so its size is a
     // cost and a prompt-injection-surface limit, not just a storage one.
+    /** One-time ticket for the interview WebSocket (see WsTicketService). */
+    public record WsTicketView(String ticket, long expiresInSeconds) {}
+
     public record SubmitQuestionRequest(@NotBlank @Size(max = 140) String title,
                                         @NotBlank @Size(max = 4000) String prompt) {}
 }

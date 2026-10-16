@@ -124,6 +124,9 @@ export const api = {
       body: JSON.stringify({ questionId }),
     }),
   getSession: (id: string) => json<SessionView>(`/api/sessions/${id}`),
+  /** One-time, 30-second ticket for opening this session's WebSocket (replaces the login token in the URL). */
+  wsTicket: (id: string) =>
+    json<{ ticket: string; expiresInSeconds: number }>(`/api/sessions/${id}/ws-ticket`, { method: 'POST' }),
   listSessions: () => json<SessionView[]>('/api/sessions'),
   getDebrief: (id: string) => jsonOrNull<DebriefPayload>(`/api/sessions/${id}/debrief`),
   getSessionDiagram: (id: string) => jsonOrNull<Diagram>(`/api/sessions/${id}/diagram`),

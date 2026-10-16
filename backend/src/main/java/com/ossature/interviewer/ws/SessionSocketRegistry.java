@@ -1,5 +1,6 @@
 package com.ossature.interviewer.ws;
 
+import com.ossature.interviewer.logging.LogSafe;
 import tools.jackson.databind.ObjectMapper;
 import com.ossature.interviewer.ws.protocol.InterviewMessage;
 import java.io.IOException;
@@ -45,7 +46,7 @@ public class SessionSocketRegistry {
         try {
             socket.sendMessage(new TextMessage(mapper.writeValueAsString(message)));
         } catch (IOException e) {
-            log.warn("Failed to push {} to session {}", message.type(), sessionId, e);
+            LogSafe.warn(log, "Failed to push {} to session {}", e, message.type(), sessionId);
         }
     }
 }

@@ -2,7 +2,7 @@ package com.ossature.interviewer.ws;
 
 import tools.jackson.databind.ObjectMapper;
 import com.ossature.interviewer.config.AppProperties;
-import com.ossature.interviewer.security.JwtService;
+import com.ossature.interviewer.security.WsTicketService;
 import com.ossature.interviewer.service.InterviewFlowService;
 import com.ossature.interviewer.service.RateLimiter;
 import com.ossature.interviewer.service.SessionService;
@@ -20,13 +20,14 @@ import org.springframework.web.util.UriComponentsBuilder;
 import com.ossature.interviewer.ws.protocol.InterviewMessage;
 
 /**
- * Single interview endpoint ({@code /ws/interview?sessionId=...&lastSeq=...&token=...}).
+ * Single interview endpoint ({@code /ws/interview?sessionId=...&lastSeq=...&ticket=...}).
  * Persists every inbound frame to the replay log and hands domain-significant frames
  * (transcript.final, diagram.locked, session.end) to {@link InterviewFlowService}.
  *
  * Auth happens here, not via the Spring Security filter chain: browsers can't set a custom
- * header on a WebSocket handshake, so the JWT travels as a {@code token} query param instead
- * and is checked by hand against both validity and session ownership (PRD 6.2 follow-up).
+ * header on a WebSocket handshake, so a short-lived single-use {@code ticket} (see
+ * {@link WsTicketService}) travels as a query param instead and is checked by hand against both
+ * validity and session ownership (PRD 6.2 follow-up, H9).
  */
 @Component
 public class InterviewWebSocketHandler extends TextWebSocketHandler {
@@ -36,20 +37,20 @@ public class InterviewWebSocketHandler extends TextWebSocketHandler {
     private final ObjectMapper mapper;
     private final SessionSocketRegistry registry;
     private final InterviewFlowService flow;
-    private final JwtService jwt;
+    private final WsTicketService tickets;
     private final SessionService sessions;
     private final RateLimiter rateLimiter;
     private final AppProperties.Limits limits;
 
     public InterviewWebSocketHandler(ObjectMapper mapper, SessionSocketRegistry registry,
-                                     InterviewFlowService flow, JwtService jwt, SessionService sessions,
+                                     InterviewFlowService flow, WsTicketService tickets, SessionService sessions,
                                      RateLimiter rateLimiter, AppProperties props) {
         this.rateLimiter = rateLimiter;
         this.limits = props.limits();
         this.mapper = mapper;
         this.registry = registry;
         this.flow = flow;
-        this.jwt = jwt;
+        this.tickets = tickets;
         this.sessions = sessions;
     }
 
@@ -62,9 +63,11 @@ public class InterviewWebSocketHandler extends TextWebSocketHandler {
             return;
         }
 
-        UUID callerId = jwt.verify(params.get("token")).orElse(null);
+        // The login token is never accepted here (it would end up in URLs and logs); only a
+        // one-time ticket for exactly this session, obtained via POST /api/sessions/{id}/ws-ticket.
+        UUID callerId = tickets.redeem(params.get("ticket"), sessionId).orElse(null);
         if (callerId == null) {
-            socket.close(CloseStatus.POLICY_VIOLATION.withReason("missing or invalid token"));
+            socket.close(CloseStatus.POLICY_VIOLATION.withReason("missing, invalid or already used ticket"));
             return;
         }
         UUID sessionUuid;
@@ -101,7 +104,8 @@ public class InterviewWebSocketHandler extends TextWebSocketHandler {
         try {
             message = mapper.readValue(frame.getPayload(), InterviewMessage.class);
         } catch (Exception e) {
-            log.warn("Dropping unparseable frame on session {}: {}", sessionId, e.getMessage());
+            // Only the error type: Jackson's message quotes the text it could not parse (the transcript).
+            log.warn("Dropping unparseable frame on session {}: {}", sessionId, e.getClass().getSimpleName());
             return;
         }
         if (!withinTranscriptLimits(sessionId, message)) {

@@ -69,6 +69,10 @@ def _get_engine() -> Engine:
         _engine = create_engine(
             get_settings().database_url,
             pool_pre_ping=True,
+            # On a failed write SQLAlchemy would otherwise append the statement's parameters to the
+            # error text - here that is the whole interview state (prompt + transcript) - and the
+            # warnings below log that error with a traceback.
+            hide_parameters=True,
             connect_args={"connect_timeout": 1},  # seconds; psycopg's minimum granularity
         )
     return _engine
