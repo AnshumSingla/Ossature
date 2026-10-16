@@ -20,6 +20,22 @@ confirm or refute with real tests.
 `docs/architecture.md` ("Local STT spike"). New follow-ups A4.11 (domain-term correction) and
 A4.12 (real-speech validation) added.
 
+**2026-10-16 - P1 batch 2 done: H9, H11, H15.**
+
+| ID | Status | What changed | Proof |
+|----|--------|--------------|-------|
+| H9 | Done | The WebSocket no longer accepts the login token in the URL. The client calls `POST /api/sessions/{id}/ws-ticket` (owner only) for a 30-second, single-use ticket bound to that session and user, and sends only that; reconnects fetch a new one. Tickets carry `typ=ws` and are rejected as login tokens (and login tokens as tickets). Residual: single-use is tracked in memory per instance, so with several backend instances a replay inside the 30 s window against a *different* instance is possible (A1.7). | 14 backend tests; live (scratch DB): reuse, old `?token=`, token-as-ticket, wrong session, another user's session, anonymous, ticket-as-Bearer and expiry all refused; real UI: room connects ("socket open"), WebSocket URL has `ticket=` only, no login token, re-entering the room reconnects |
+| H15 | Done | Every log line and stack trace is masked (JWTs, Bearer, token/ticket/password pairs, emails) by logback converters in `logback-spring.xml`; failures are logged by type + HTTP status, never by message or body (a JSON parse error quotes the transcript; an agent HTTP error can echo it). Agent: same masking, and SQLAlchemy no longer appends the statement parameters - the whole interview state - to failed-write errors (`hide_parameters`). | 11 + 1 backend tests incl. a full-app console check (`ticket=[redacted] by d***@example.com with Bearer [jwt]`), 10 agent tests incl. a real SQLAlchemy error |
+| H11 | Done (structural); behavioural probe opt-in | **Framing:** user-controlled text (question prompt, candidate speech, diagram labels, and model output derived from them) only enters prompts as escaped, tagged data in the human message; system messages hold fixed text + a standing untrusted-data rule. **Leak guard:** the interviewer's reply cannot contain a run of 8+ consecutive words from the reference solution - it is replaced by a safe probe even if the model obeys an injection. **Output validation:** review flaws and the debrief are forced into a bounded shape (types, lengths, priority 1-5, 6 items, markup stripped); fenced JSON is accepted. **Caps:** agent rejects prompts/transcripts over 4000 chars. Also fixed: the interviewer was never shown the question prompt. | 87 injection tests over a 15-payload corpus (`agent/tests/injection_corpus.json`); mutation check: removing the escaping, the leak guard, or putting candidate text in the system message makes 9 / 16 / 15 tests fail |
+
+What H11 does **not** prove: there is no API key in this environment, so how a real model behaves
+against the corpus is untested (`test_live_model_does_not_leak_the_canary` is ready and runs when
+`OPENAI_API_KEY` is set - run it before release, C4). The leak guard catches copied text, not a
+model describing the reference in its own words. A candidate can still inject into their *own*
+summary/debrief (self-affecting only). The cross-user path - a community question prompt shaping the
+Council's reference for other users - is reduced by owner review, tagging, escaping and the length cap,
+not eliminated.
+
 **2026-10-16 - P1 batch done: H8, H12, H13, H14** (branch `feat/security-hardening-and-local-stt`).
 
 | ID | Status | What changed | Proof |

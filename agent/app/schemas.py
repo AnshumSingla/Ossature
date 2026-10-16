@@ -11,7 +11,8 @@ Diagram = dict[str, Any]  # { "nodes": [...], "edges": [...] }
 
 class StartRequest(BaseModel):
     session_id: str = Field(alias="sessionId")
-    prompt: str
+    # Same ceiling the backend enforces on community submissions (defence in depth at this boundary).
+    prompt: str = Field(max_length=4000)
     has_vetted_reference: bool = Field(default=False, alias="hasVettedReference")
     reference_solution: dict[str, Any] = Field(default_factory=dict, alias="referenceSolution")
 
@@ -26,7 +27,7 @@ class TurnResponse(BaseModel):
 
 class TranscriptRequest(BaseModel):
     session_id: str = Field(alias="sessionId")
-    text: str
+    text: str = Field(max_length=4000)  # every transcript turn is an LLM call
 
     model_config = {"populate_by_name": True}
 
@@ -51,7 +52,7 @@ class ReviewResponse(BaseModel):
 class SummaryRequest(BaseModel):
     session_id: str = Field(alias="sessionId")
     ordinal: int
-    transcript_window: str = Field(default="", alias="transcriptWindow")
+    transcript_window: str = Field(default="", alias="transcriptWindow", max_length=20000)
     diagram_state: Diagram = Field(default_factory=dict, alias="diagramState")
 
     model_config = {"populate_by_name": True}
