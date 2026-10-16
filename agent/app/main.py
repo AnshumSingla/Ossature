@@ -12,7 +12,7 @@ from fastapi import Depends, FastAPI
 
 from app import store, turns
 from app.config import get_settings
-from app.security import require_internal_token
+from app.security import ensure_production_safe, require_internal_token
 from app.schemas import (
     DebriefRequest,
     DebriefResponse,
@@ -28,6 +28,7 @@ from app.schemas import (
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    ensure_production_safe()
     store.ensure_schema()
     yield
 

@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     agent_port: int = 8000
+    # "dev" (default) or "prod". prod turns on startup checks that refuse insecure defaults.
+    app_env: str = "dev"
 
     openai_api_key: str = ""
 
@@ -37,6 +39,10 @@ class Settings(BaseSettings):
     # Shared secret the backend sends as X-Internal-Token (see app/security.py). Blank = no
     # check, open for local dev - mirrors the backend's AGENT_SHARED_SECRET default.
     internal_auth_token: str = ""
+
+    @property
+    def is_production(self) -> bool:
+        return self.app_env.strip().lower() in {"prod", "production"}
 
     @property
     def stub_mode(self) -> bool:
