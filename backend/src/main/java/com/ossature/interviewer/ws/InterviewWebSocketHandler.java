@@ -1,8 +1,10 @@
 package com.ossature.interviewer.ws;
 
 import tools.jackson.databind.ObjectMapper;
+import com.ossature.interviewer.config.AppProperties;
 import com.ossature.interviewer.security.JwtService;
 import com.ossature.interviewer.service.InterviewFlowService;
+import com.ossature.interviewer.service.RateLimiter;
 import com.ossature.interviewer.service.SessionService;
 import java.net.URI;
 import java.util.Map;
@@ -36,9 +38,14 @@ public class InterviewWebSocketHandler extends TextWebSocketHandler {
     private final InterviewFlowService flow;
     private final JwtService jwt;
     private final SessionService sessions;
+    private final RateLimiter rateLimiter;
+    private final AppProperties.Limits limits;
 
     public InterviewWebSocketHandler(ObjectMapper mapper, SessionSocketRegistry registry,
-                                     InterviewFlowService flow, JwtService jwt, SessionService sessions) {
+                                     InterviewFlowService flow, JwtService jwt, SessionService sessions,
+                                     RateLimiter rateLimiter, AppProperties props) {
+        this.rateLimiter = rateLimiter;
+        this.limits = props.limits();
         this.mapper = mapper;
         this.registry = registry;
         this.flow = flow;
@@ -97,7 +104,35 @@ public class InterviewWebSocketHandler extends TextWebSocketHandler {
             log.warn("Dropping unparseable frame on session {}: {}", sessionId, e.getMessage());
             return;
         }
+        if (!withinTranscriptLimits(sessionId, message)) {
+            return;
+        }
         flow.onInbound(UUID.fromString(sessionId), message);
+    }
+
+    /**
+     * Every transcript.final becomes a paid LLM call, so cap how long one can be and how often
+     * they arrive per session. Over-limit frames are dropped (and logged), not forwarded.
+     */
+    private boolean withinTranscriptLimits(String sessionId, InterviewMessage message) {
+        String text;
+        if (message instanceof InterviewMessage.TranscriptFinal f) {
+            text = f.text();
+        } else if (message instanceof InterviewMessage.TranscriptPartial p) {
+            text = p.text();
+        } else {
+            return true; // not a transcript frame
+        }
+        if (text == null || text.length() > limits.transcriptMaxChars()) {
+            log.warn("Dropping empty/oversized transcript frame on session {}", sessionId);
+            return false;
+        }
+        if (message instanceof InterviewMessage.TranscriptFinal
+                && !rateLimiter.allow("ws:transcript:" + sessionId, limits.transcriptMaxPerMinute(), 60_000)) {
+            log.warn("Dropping transcript.final over rate limit on session {}", sessionId);
+            return false;
+        }
+        return true;
     }
 
     @Override

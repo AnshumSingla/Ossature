@@ -2,6 +2,7 @@ package com.ossature.interviewer.web;
 
 import com.ossature.interviewer.config.AppProperties;
 import com.ossature.interviewer.service.AuthService;
+import com.ossature.interviewer.service.Emails;
 import com.ossature.interviewer.service.RateLimiter;
 import com.ossature.interviewer.service.TooManyRequestsException;
 import com.ossature.interviewer.web.dto.AuthDtos.AuthResponse;
@@ -49,7 +50,10 @@ public class AuthController {
      * per-IP (stops one source spraying guesses across many emails) - either tripping blocks
      * the call (PRD 6.2 auth follow-up).
      */
-    private void guardLoginAttempt(String email, HttpServletRequest http) {
+    private void guardLoginAttempt(String rawEmail, HttpServletRequest http) {
+        // Normalised so "A@x.com" and "a@x.com" share one attempt budget - otherwise changing
+        // the case of the email would hand an attacker a fresh set of guesses.
+        String email = Emails.normalize(rawEmail);
         if (!rateLimiter.allow("login:email:" + email, limits.loginMaxPerEmail(), limits.loginWindow().toMillis())) {
             throw new TooManyRequestsException("Too many attempts for this account - try again shortly");
         }

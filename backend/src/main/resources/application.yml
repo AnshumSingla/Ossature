@@ -58,6 +58,14 @@ ossature:
     session-create-max: 10
     session-create-window: 1h
 
+  limits:
+    # Largest accepted REST body. Real payloads (login, a question, a session) are far smaller.
+    max-request-bytes: 65536
+    # Largest single WebSocket frame. A full diagram snapshot is the biggest legitimate frame.
+    ws-max-message-bytes: 262144
+    # transcript.final frames each trigger a paid LLM call.
+    transcript-max-chars: 4000
+    transcript-max-per-minute: 30
 management:
   endpoints:
     web:

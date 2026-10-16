@@ -1,5 +1,6 @@
 package com.ossature.interviewer.security;
 
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -37,6 +38,9 @@ public class SecurityConfig {
                         // GET /api/questions* is public browsing; everything else needs a user.
                         .requestMatchers(HttpMethod.GET, "/api/questions/**").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                        // Metrics etc. leak internals (and cost/usage numbers): owner only, not
+                        // merely "any logged-in user" which is what anyRequest() would give them.
+                        .requestMatchers("/actuator/**").hasRole("OWNER")
                         // Validation failures (e.g. @Valid on signup) internally forward to
                         // /error - without this, Security blocks that forward and the real
                         // 400 gets clobbered into an opaque 403.
@@ -47,6 +51,18 @@ public class SecurityConfig {
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
+    }
+
+    /**
+     * JwtAuthFilter is a @Component, so Spring Boot would also register it as a plain servlet
+     * filter - running it a second time outside the security chain, where Spring Security may
+     * clear what it sets. It belongs only inside the chain (addFilterBefore above).
+     */
+    @Bean
+    public FilterRegistrationBean<JwtAuthFilter> jwtAuthFilterRegistration(JwtAuthFilter filter) {
+        FilterRegistrationBean<JwtAuthFilter> registration = new FilterRegistrationBean<>(filter);
+        registration.setEnabled(false);
+        return registration;
     }
 
     @Bean

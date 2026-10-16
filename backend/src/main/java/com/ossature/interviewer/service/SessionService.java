@@ -5,6 +5,7 @@ import com.ossature.interviewer.agent.AgentClient;
 import com.ossature.interviewer.agent.AgentDtos;
 import com.ossature.interviewer.domain.InterviewSession;
 import com.ossature.interviewer.domain.Question;
+import com.ossature.interviewer.domain.QuestionStatus;
 import com.ossature.interviewer.repo.InterviewSessionRepository;
 import com.ossature.interviewer.repo.QuestionRepository;
 import java.util.List;
@@ -43,6 +44,12 @@ public class SessionService {
     public InterviewSession create(UUID userId, UUID questionId) {
         Question question = questions.findById(questionId)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown question " + questionId));
+        // Only reviewed questions may be run. A pending/rejected community prompt goes
+        // straight to the LLM, so letting anyone start one by id would bypass the owner review.
+        // Same message as "not found" so the response doesn't reveal that the id exists.
+        if (question.getStatus() != QuestionStatus.APPROVED) {
+            throw new IllegalArgumentException("Unknown question " + questionId);
+        }
 
         InterviewSession session = new InterviewSession(userId, questionId);
         if (question.hasVettedReference()) {

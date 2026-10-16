@@ -12,7 +12,7 @@ public final class AuthDtos {
     private AuthDtos() {}
 
     public record SignupRequest(
-            @NotBlank @Email String email,
+            @NotBlank @Email @Size(max = 254) String email,
             // 8-72 chars (BCrypt silently ignores anything past 72 bytes), at least one
             // letter and one digit - a floor against "password123"-grade single-class input,
             // not full complexity scoring.
@@ -20,9 +20,11 @@ public final class AuthDtos {
             @Pattern(regexp = "(?=.*[A-Za-z])(?=.*\\d).+",
                     message = "Password must contain at least one letter and one digit")
             String password,
-            @NotBlank String displayName) {}
+            @NotBlank @Size(max = 80) String displayName) {}
 
-    public record LoginRequest(@NotBlank @Email String email, @NotBlank String password) {}
+    // Caps: an unbounded field is free memory/CPU for an attacker (bcrypt hashes whatever it is given).
+    public record LoginRequest(@NotBlank @Email @Size(max = 254) String email,
+                               @NotBlank @Size(max = 128) String password) {}
 
     public record AuthResponse(String token, UUID userId, String email, String displayName, boolean isOwner) {
         public static AuthResponse of(String token, User u, boolean isOwner) {

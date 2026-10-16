@@ -8,8 +8,11 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-ossature}
       POSTGRES_USER: ${POSTGRES_USER:-ossature}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ossature}
+    # Bound to loopback only: the services run on the host in development, so nothing else
+    # needs this port, and publishing it on 0.0.0.0 would expose a database whose default
+    # password is public. (Do not use this file for production - see docs/remaining-work-and-security-plan.md.)
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -28,7 +31,7 @@ services:
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
       PGADMIN_CONFIG_SERVER_MODE: "False"
     ports:
-      - "${PGADMIN_PORT:-5050}:80"
+      - "127.0.0.1:${PGADMIN_PORT:-5050}:80"
     depends_on:
       - postgres
 
