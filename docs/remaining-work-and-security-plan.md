@@ -16,6 +16,27 @@ confirm or refute with real tests.
 
 ## Progress
 
+**2026-10-20 - Row-level security done on the backend (H17 / H18 / H19; R1-R7).** R8 (agent) is still open.
+
+| ID | Status | What changed | Proof |
+|----|--------|--------------|-------|
+| R1 | Done | Ownership per table is encoded in the policies (V7). `interview_sessions.user_id` is now `NOT NULL` (V8). Events and summaries belong through their session (policy joins on the PK, no denormalised column). Approved questions are public; pending/rejected are visible only to the submitter and the owner | Policy tests |
+| R2/H18 | Done (backend), agent pending | Roles `ossature_app` (DML only, not the owner, no `BYPASSRLS`, no `CREATE` on `public`) and `ossature_agent` (only `agent_sessions`) created by V7; all five tables `ENABLE` + `FORCE ROW LEVEL SECURITY`. The backend connects as `ossature_app`; Flyway runs as the schema owner (`POSTGRES_USER`). Production refuses to start if the app connects as the owner or any DB password is a development default | `ProductionSafetyCheckTest`, `RlsApplicationIT` (`current_user` is `ossature_app`, not superuser) |
+| R3 | Done | `RlsJpaTransactionManager` sets `app.user_id`, `app.is_owner`, `app.scope` with `set_config(..., true)` (transaction-local) at the start of every transaction, from `DbContext` or the Spring Security principal. Nothing set means nothing visible | Test with a pool of one connection: identity never leaks to the next transaction |
+| R4 | Done | Policies per table and command in V7 (users: self / auth-scope read+insert; questions: read, submit, moderate; sessions: own + scheduler list of ACTIVE rows; events and summaries: through own session) | 23 `RlsPolicyTest` cases, mutation-checked |
+| R5 | Done | `SummaryScheduler` lists ACTIVE sessions in the narrow `scheduler` scope (sees session rows only, never their content) and then acts as each owner; login and signup run in the `auth` scope; the WebSocket handler runs as the ticket's user. No path uses a bypass role | `RlsApplicationIT`; live: scheduler found every active session and acted per owner |
+| R6 | Done | Real-Postgres tests (scratch database per run, skipped if Postgres is not reachable; Testcontainers is the CI equivalent) for unset context, cross-user read/write on every table, owner-only paths, and the application's own services | 23 + 7 tests |
+| R7 | Done | Policy predicates use `idx_sessions_user` and the primary key; the events policy is evaluated as a hashed subplan once per query, not per row. Replay query still uses `idx_events_session_seq` | `EXPLAIN (ANALYZE)` as `ossature_app` on the dev database |
+| H19 | Done as a side effect | Another user's session, events, summaries, debrief, diagram and ticket request all return 404 (they simply do not exist for that user). `SessionController.owned()` stays as a second layer | Live script: every cross-user request returned 404 |
+
+Found while doing it: Spring Data runs derived query methods outside any transaction unless the repository is `@Transactional`. A query with no transaction has no identity and silently saw nothing under RLS (login and the scheduler broke). All repositories are now `@Transactional(readOnly = true)` and `RepositoryTransactionTest` fails if one is added without it.
+
+**What RLS does and does not give you.** It stops mistakes in application code from leaking another user's rows (a missing ownership check, a wrong query). It does not stop someone who can run arbitrary SQL as `ossature_app`: that role can set its own `app.user_id`. So the SQL-injection defences, parameterised queries and the app-level checks all stay. Do not give the application account more rights than it has, and keep its password separate from the owner's.
+
+Live end-to-end check (dev database migrated to V8, backend running as `ossature_app`): signup, login, session create/list/read, events, summaries, debrief and diagram for the owner (200) versus another user (404), the pending-question workflow, non-owner moderation (403), WebSocket ticket flow (ticket reuse and another user's ticket refused), and a message sent over the socket is stored under the right user. Full backend suite: 95 passing, plus `RlsApplicationIT` (7).
+
+Still open for the data layer: **R8** (agent connects as `ossature_agent`, stops creating tables, optimistic locking, A1.2/A1.3).
+
 **2026-10-12 - A4.1 done.** Moonshine spike: conditional go with `moonshine-tiny` q8; see
 `docs/architecture.md` ("Local STT spike"). New follow-ups A4.11 (domain-term correction) and
 A4.12 (real-speech validation) added.
@@ -228,7 +249,7 @@ estimate pending confirmation in Part C.
 |----|------|------|
 | H17 | **Postgres Row-Level Security - decided: build it, on top of app checks and CI tests.** Isolation is application-level only today (`owned()` in `SessionController`, plus the WS handler). Broken into R1-R8 below. | L |
 | H18 | **Least-privilege DB users** - delivered as part of R2: separate roles for Flyway (DDL), backend (DML) and agent (its own table only). | (in R2) |
-| H19 | **404 vs 403 on sessions** reveals whether a session ID exists. Return 404 for both. | S |
+| H19 | **404 vs 403 on sessions** reveals whether a session ID exists. Return 404 for both. **Done via RLS (see Progress).** | S |
 | H20 | **Dependency and image hygiene:** pin versions, enable Dependabot or Renovate, scan images, produce an SBOM. | M |
 | H21 | **Data retention and deletion:** transcripts and debriefs are personal data; define retention, add account/session deletion. | M |
 
