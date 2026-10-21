@@ -16,7 +16,9 @@ on (optimistic locking) - on a conflict the change is redone on the fresh state.
 from __future__ import annotations
 
 import logging
+import random
 import threading
+import time
 from typing import Any
 
 from app import store
@@ -41,7 +43,10 @@ _SESSION_LOCKS: dict[str, threading.RLock] = {}
 
 # Attempts at a conditional write before giving up. Each retry means another instance wrote in
 # between, so exhausting this means sustained contention on one session, not a transient blip.
-_MAX_WRITE_ATTEMPTS = 8
+_MAX_WRITE_ATTEMPTS = 25
+# Pause before retrying (up to attempt * this, randomised) so that writers which collided do not
+# keep colliding in lock-step, and so a busy writer cannot starve the loser of a conflict forever.
+_RETRY_BACKOFF_S = 0.004
 
 
 class StateConflictError(RuntimeError):
@@ -97,7 +102,7 @@ def _apply(current: dict[str, Any], update: dict[str, Any]) -> dict[str, Any]:
 
 def _merge(session_id: str, update: dict[str, Any]) -> InterviewState:
     with _session_lock(session_id):
-        for _ in range(_MAX_WRITE_ATTEMPTS):
+        for attempt in range(_MAX_WRITE_ATTEMPTS):
             with _LOCK:
                 current = _SESSIONS.get(session_id, {"session_id": session_id})
                 version = _VERSIONS.get(session_id)
@@ -112,6 +117,7 @@ def _merge(session_id: str, update: dict[str, Any]) -> InterviewState:
                 else:  # the row vanished (session ended elsewhere): start again from our copy
                     with _LOCK:
                         _VERSIONS[session_id] = None
+                time.sleep(random.uniform(0, _RETRY_BACKOFF_S * (attempt + 1)))
                 continue
 
             with _LOCK:

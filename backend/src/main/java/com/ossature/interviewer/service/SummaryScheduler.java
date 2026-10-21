@@ -12,6 +12,7 @@ import com.ossature.interviewer.domain.SessionState;
 import com.ossature.interviewer.repo.InterimSummaryRepository;
 import com.ossature.interviewer.repo.InterviewSessionRepository;
 import com.ossature.interviewer.repo.SessionEventRepository;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -42,20 +43,39 @@ public class SummaryScheduler {
     private final AgentClient agent;
     private final AppProperties props;
     private final ObjectMapper mapper;
+    private final SchedulerLocks locks;
 
     public SummaryScheduler(InterviewSessionRepository sessions, InterimSummaryRepository summaries,
                             SessionEventRepository events, AgentClient agent, AppProperties props,
-                            ObjectMapper mapper) {
+                            ObjectMapper mapper, SchedulerLocks locks) {
         this.sessions = sessions;
         this.summaries = summaries;
         this.events = events;
         this.agent = agent;
         this.props = props;
         this.mapper = mapper;
+        this.locks = locks;
     }
+
+    private static final String LOCK = "summary-sweep";
+    /** Lease length: a sweep calls a model per due session, but a crashed holder must not block it for long. */
+    private static final Duration LOCK_AT_MOST = Duration.ofMinutes(5);
 
     @Scheduled(fixedDelay = 30_000)
     public void tick() {
+        // With several backend instances every one of them runs this schedule; only one sweeps at a time.
+        if (!locks.tryAcquire(LOCK, LOCK_AT_MOST)) {
+            log.debug("Summary sweep skipped: another instance holds the lease");
+            return;
+        }
+        try {
+            sweep();
+        } finally {
+            locks.release(LOCK);
+        }
+    }
+
+    private void sweep() {
         long intervalMs = props.session().summaryInterval().toMillis();
         // 'scheduler' scope may only LIST active sessions (to learn who owns them). The real work then
         // runs as each session's owner, with exactly that user's access and no more.

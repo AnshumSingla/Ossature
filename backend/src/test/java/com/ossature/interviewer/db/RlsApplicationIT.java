@@ -73,6 +73,9 @@ class RlsApplicationIT {
         return DbContext.callInScope(DbContext.SCOPE_AUTH, () -> auth.signup(new SignupRequest(email, "Passw0rd1", name))).userId();
     }
 
+    // (When an agent service is running, creating a session also stores the interviewer's opening turn, so
+    // the tests below look for their own event rather than assuming the log holds only that one.)
+
     private <T> T tx(java.util.function.Supplier<T> body) {
         return new TransactionTemplate(tm).execute(status -> body.get());
     }
@@ -133,7 +136,7 @@ class RlsApplicationIT {
 
         // the owner can read it all back
         assertThat(DbContext.callAs(a, false, () -> sessions.get(sid)).getUserId()).isEqualTo(a);
-        assertThat(DbContext.callAs(a, false, () -> eventLog.since(sid, 0))).hasSize(1);
+        assertThat(DbContext.callAs(a, false, () -> eventLog.since(sid, 0))).filteredOn(e -> e.getPayload().contains("private words")).hasSize(1);
         assertThat(DbContext.callAs(a, false, () -> sessions.listForUser(a))).extracting(InterviewSession::getId).contains(sid);
 
         // another user gets "unknown session" and an empty log - not a "forbidden" that confirms it exists
@@ -151,7 +154,7 @@ class RlsApplicationIT {
         assertThatThrownBy(() -> sessions.get(sid)).isInstanceOf(IllegalArgumentException.class);
 
         // and A's data is still intact after all of that
-        assertThat(DbContext.callAs(a, false, () -> eventLog.since(sid, 0))).hasSize(1);
+        assertThat(DbContext.callAs(a, false, () -> eventLog.since(sid, 0))).filteredOn(e -> e.getPayload().contains("private words")).hasSize(1);
     }
 
     @Test

@@ -4,18 +4,16 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Component;
 
 /**
- * Fixed-window rate limiter, in-memory. Fine for the current single-instance deployment
- * (same caveat as {@code agent/app/store.py}'s in-memory session cache) - a real
- * multi-instance setup would need this backed by something shared (e.g. Redis) instead.
+ * Fixed-window rate limiter, in memory: the per-process implementation, used directly by unit tests.
+ * The running application uses {@link PostgresRateLimiter} (a subclass) instead, so the limits hold
+ * across every backend instance - a per-process counter would multiply each limit by the number of
+ * instances and reset on every restart.
  *
  * Used to brute-force-guard {@code /api/auth/login} and to cap session creation, which
  * triggers a real paid LLM call via the Council node (PRD §8 cost notes).
  */
-@Component
 public class RateLimiter {
 
     private record Window(long windowStartMs, AtomicInteger count) {}
@@ -36,7 +34,6 @@ public class RateLimiter {
     }
 
     // Unbounded growth guard: a key with no recent activity is just dead weight in the map.
-    @Scheduled(fixedDelay = 600_000)
     void evictStale() {
         long cutoff = Instant.now().toEpochMilli() - 3_600_000;
         windows.entrySet().removeIf(e -> e.getValue().windowStartMs() < cutoff);

@@ -39,3 +39,6 @@ __pycache__/
 TODO.md
 whiteboard-interviewer-prd.md
 CLAUDE.md
+
+# Output of scripts/two_instance_check.py
+.topology-*.log

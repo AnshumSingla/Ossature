@@ -8,11 +8,10 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import javax.crypto.SecretKey;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -30,9 +29,8 @@ import org.springframework.stereotype.Component;
  *   <li><b>not a login token</b> - it carries {@code typ=ws}, which {@link JwtService} rejects, so a
  *       ticket that leaks from a URL can't call the REST API.</li>
  * </ul>
- * Verification is stateless (signature + expiry); single-use is tracked in memory per instance, so
- * with several backend instances a replay inside the 30 s window against a <i>different</i> instance
- * is the residual risk (tracked with the multi-instance work).
+ * Verification is stateless (signature + expiry); "already used" is the only shared state, kept in
+ * Postgres ({@link JdbcTicketRedemptions}) so a ticket is single-use across every backend instance.
  */
 @Component
 public class WsTicketService {
@@ -42,17 +40,26 @@ public class WsTicketService {
 
     private final SecretKey key;
     private final Duration ttl;
-    /** jti -> expiry (epoch ms) of tickets already redeemed, kept only until they would expire anyway. */
-    private final Map<String, Long> redeemed = new ConcurrentHashMap<>();
+    private final TicketRedemptions redemptions;
 
+    /** Falls back to a per-process store only when no shared one exists (unit tests, no database). */
     @Autowired
-    public WsTicketService(AppProperties props) {
+    public WsTicketService(AppProperties props, ObjectProvider<TicketRedemptions> redemptions) {
+        this(props, DEFAULT_TTL, redemptions.getIfAvailable(InMemoryTicketRedemptions::new));
+    }
+
+    WsTicketService(AppProperties props) {
         this(props, DEFAULT_TTL);
     }
 
     WsTicketService(AppProperties props, Duration ttl) {
+        this(props, ttl, new InMemoryTicketRedemptions());
+    }
+
+    public WsTicketService(AppProperties props, Duration ttl, TicketRedemptions redemptions) {
         this.key = Keys.hmacShaKeyFor(props.auth().jwtSecret().getBytes(StandardCharsets.UTF_8));
         this.ttl = ttl;
+        this.redemptions = redemptions;
     }
 
     public Duration ttl() {
@@ -88,19 +95,12 @@ public class WsTicketService {
                     || payload.getId() == null) {
                 return Optional.empty();
             }
-            long expiresAt = payload.getExpiration().getTime();
-            purgeExpired();
-            if (redeemed.putIfAbsent(payload.getId(), expiresAt) != null) {
+            if (!redemptions.firstUse(payload.getId(), payload.getExpiration().toInstant())) {
                 return Optional.empty(); // already used
             }
             return Optional.of(UUID.fromString(payload.getSubject()));
         } catch (JwtException | IllegalArgumentException e) {
             return Optional.empty();
         }
-    }
-
-    private void purgeExpired() {
-        long now = System.currentTimeMillis();
-        redeemed.values().removeIf(expiresAt -> expiresAt < now);
     }
 }

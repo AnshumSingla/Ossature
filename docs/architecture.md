@@ -301,6 +301,13 @@ compare-and-set; on a conflict `turns._merge` reloads and redoes its change (A1.
 it needs no routing layer and makes restart recovery and instance hand-off the same code path. The
 rest of this section describes the original single-instance design; read it with that in mind.
 
+**Backend state shared across instances (2026-10-21, migration V9).** Everything that used to live in one
+backend process now lives in Postgres: rate-limit counters (`rate_limits`, hashed keys), the scheduler lease
+(`scheduler_locks`) and used WebSocket tickets (`ws_ticket_redemptions`). The `SessionSocketRegistry` stays
+per-instance on purpose: a push is always produced while handling a frame from that same socket, and anything
+missed is recovered by replaying the event log from `lastSeq` on reconnect, to whichever instance the client
+lands on. `scripts/two_instance_check.py` runs two backends and two agents against one database to verify this.
+
 This is a working-state cache, not a second system of record — the backend's Postgres
 already holds the durable transcript/diagram/debrief history. So the lifecycle is:
 - **Write-through**: every `_merge` (i.e. every turn, Council's result, Review, Summary)

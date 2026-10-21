@@ -148,7 +148,7 @@ public class InterviewWebSocketHandler extends TextWebSocketHandler {
     public void afterConnectionClosed(WebSocketSession socket, CloseStatus status) {
         String sessionId = (String) socket.getAttributes().get("sessionId");
         if (sessionId != null) {
-            registry.unregister(sessionId);
+            registry.unregister(sessionId, socket);
         }
         log.info("WS closed for session {} ({})", sessionId, status);
     }
