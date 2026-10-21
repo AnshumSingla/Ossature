@@ -11,7 +11,7 @@ LangGraph 1.2 / langchain-core 1.6, React 19 / Vite 8, Java 21.
 
 | Suite | Tests | Covers |
 |-------|-------|--------|
-| Backend (`./mvnw test`) | 199 | see below |
+| Backend (`./mvnw test`) | 200 | see below |
 | Agent (`pytest`) | 159 (+15 live-model probes, skipped without `OPENAI_API_KEY`) | injection corpus, secret handling, locking, council recovery, least-privilege role |
 | Frontend (`npm test`) | 40 | session handling, XSS sinks, CSP |
 
@@ -41,6 +41,11 @@ Backend highlights, by plan item:
   origins with a self-hosted model.
 - **C5 WebSocket** - garbage, `null`, oversized frames, NUL bytes, forged `sender: ai`, locking the diagram twice, any
   frame after the session ended, a failed debrief: all handled; the paid agent is called the expected number of times.
+- **C6 cost controls** - `CostBudgetFullStackTest`: each spoken turn and diagram review is counted against a per-person
+  daily budget (default 1500) and a service-wide hourly circuit breaker (default 5000), through the shared limiter so
+  they hold across instances; over budget the frame is dropped and the candidate is told why; the person who hit the
+  limit stays stopped and the paid-call count is exact. Mutation-checked. Also: per-session transcript rate (30/min),
+  session creation (10/h), and the state guards (a diagram is reviewed once; ended sessions accept nothing).
 - **C7 CORS** - only the exact configured origin is echoed; `null`, look-alike and wildcard origins are not.
 - **C8 secrets** - production refuses to start on default secrets and passwords (`ProductionSafetyCheckTest`, agent
   tests); **gitleaks over the full history: no leaks** (one reviewed false positive, the public jwt.io sample token in a
@@ -68,8 +73,7 @@ Backend highlights, by plan item:
 
 ## Not yet run (so this report does not claim them)
 
-- **C6 cost controls:** a per-user daily LLM budget and a global circuit breaker are **not built**; the per-session
-  transcript rate (30/min), session creation (10/h) and the new state guards are the current limits. No k6 load test.
+- **C6 load test:** no k6 run. (The cost controls themselves are built and tested - see below.)
 - **C7 transport:** TLS, HSTS behaviour, HTTP to HTTPS redirect - needs a deployment (`testssl.sh`).
 - **C9 infrastructure:** backup restore test, network exposure of Postgres and the agent - needs staging.
 - **C10:** container image scan (`trivy`) - there are no application images yet; `semgrep` static analysis not run.

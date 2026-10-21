@@ -35,7 +35,8 @@ class TranscriptLimitsTest {
         var limits = new AppProperties.Limits(65_536, 262_144, 100, 3);
         var props = new AppProperties(null, null, null, null, null, limits);
         handler = new InterviewWebSocketHandler(new ObjectMapper(), mock(SessionSocketRegistry.class), flow,
-                mock(WsTicketService.class), mock(SessionService.class), new RateLimiter(), props);
+                mock(WsTicketService.class), mock(SessionService.class), new RateLimiter(),
+                new com.ossature.interviewer.service.CostBudget(new RateLimiter(), new com.ossature.interviewer.config.BudgetProperties(0, 0)), props);
         when(socket.getAttributes()).thenReturn(Map.of("sessionId", SESSION.toString(), "userId", UUID.randomUUID()));
     }
 

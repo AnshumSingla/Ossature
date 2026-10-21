@@ -3,6 +3,7 @@ package com.ossature.interviewer.ws;
 import tools.jackson.databind.ObjectMapper;
 import com.ossature.interviewer.config.AppProperties;
 import com.ossature.interviewer.db.DbContext;
+import com.ossature.interviewer.service.CostBudget;
 import com.ossature.interviewer.service.TextSafety;
 import com.ossature.interviewer.security.WsTicketService;
 import com.ossature.interviewer.service.InterviewFlowService;
@@ -42,12 +43,14 @@ public class InterviewWebSocketHandler extends TextWebSocketHandler {
     private final WsTicketService tickets;
     private final SessionService sessions;
     private final RateLimiter rateLimiter;
+    private final CostBudget budget;
     private final AppProperties.Limits limits;
 
     public InterviewWebSocketHandler(ObjectMapper mapper, SessionSocketRegistry registry,
                                      InterviewFlowService flow, WsTicketService tickets, SessionService sessions,
-                                     RateLimiter rateLimiter, AppProperties props) {
+                                     RateLimiter rateLimiter, CostBudget budget, AppProperties props) {
         this.rateLimiter = rateLimiter;
+        this.budget = budget;
         this.limits = props.limits();
         this.mapper = mapper;
         this.registry = registry;
@@ -123,6 +126,9 @@ public class InterviewWebSocketHandler extends TextWebSocketHandler {
         }
         UUID userId = (UUID) socket.getAttributes().get("userId");
         final InterviewMessage accepted = message;
+        if (!withinBudget(sessionId, userId, accepted)) {
+            return;
+        }
         try {
             DbContext.runAs(userId, false, () -> flow.onInbound(UUID.fromString(sessionId), accepted));
         } catch (RuntimeException e) {
@@ -130,6 +136,28 @@ public class InterviewWebSocketHandler extends TextWebSocketHandler {
             // Type only: the message of a parse or SQL error can quote what they said.
             log.warn("Frame {} on session {} failed: {}", accepted.type(), sessionId, e.getClass().getSimpleName());
         }
+    }
+
+    /**
+     * Paid model calls (a spoken turn, a diagram review) count against the person's daily budget and the service-wide
+     * hourly circuit breaker. Over budget: the frame is dropped and the candidate is told, once per attempt.
+     */
+    private boolean withinBudget(String sessionId, UUID userId, InterviewMessage message) {
+        if (!(message instanceof InterviewMessage.TranscriptFinal) && !(message instanceof InterviewMessage.DiagramLocked)) {
+            return true;
+        }
+        CostBudget.Verdict verdict = budget.spend(userId);
+        if (verdict == CostBudget.Verdict.OK) {
+            return true;
+        }
+        log.warn("Over the {} budget: dropping {} on session {}",
+                verdict == CostBudget.Verdict.USER_LIMIT ? "per-user daily" : "service-wide hourly", message.type(), sessionId);
+        registry.push(sessionId, new InterviewMessage.ChatMessage("chat.message", sessionId, "ai",
+                verdict == CostBudget.Verdict.USER_LIMIT
+                        ? "You've reached today's usage limit for interviews. It resets within 24 hours."
+                        : "The interviewer is very busy right now. Please try again in a little while.",
+                "filler", System.currentTimeMillis()));
+        return false;
     }
 
     /** User text from the socket with control characters and bidirectional overrides removed. */

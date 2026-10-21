@@ -35,6 +35,12 @@ Found while doing it: Spring Data runs derived query methods outside any transac
 
 Live end-to-end check (dev database migrated to V8, backend running as `ossature_app`): signup, login, session create/list/read, events, summaries, debrief and diagram for the owner (200) versus another user (404), the pending-question workflow, non-owner moderation (403), WebSocket ticket flow (ticket reuse and another user's ticket refused), and a message sent over the socket is stored under the right user. Full backend suite: 95 passing, plus `RlsApplicationTest` (7).
 
+**2026-10-21 - Part C security test pass (automated part) done; cost controls (C6) built.** Full write-up: `docs/security-test-report.md`.
+
+Built and automated: C1 (forged/abused tokens), C2 (role x endpoint matrix with a completeness guard), C3 (full-stack tenant isolation over REST and WebSocket, mass assignment, connection-pool leak, each defence layer tested alone), C4 (hostile bodies, injection strings, CRLF, XSS sinks), C4b (CSP / own-origin-only connections), C5 (WebSocket abuse and state), C6 (per-person daily budget + service-wide hourly circuit breaker on paid model calls, shared across instances), C7 (CORS), C8 (secret scan of the whole history: clean; production refuses default secrets), C10 (dependency audit, SBOM), C12 (deletion/export/retention). **The pass found and fixed 11 real problems**, including repeated paid diagram reviews, frames accepted after a session ended, a NUL byte causing a 500, a null frame killing the socket, and 500s for tokens of deleted accounts. Backend 200 tests, agent 159, frontend 40.
+
+**Not done (needs a deployment, tools, or your input):** TLS/HSTS check (C7), backup restore and network exposure (C9), trivy/semgrep (C10), ZAP (C11), k6 load test (C6), manual review of the owner flow, real-model prompt-injection probe, the speech-to-text browser/real-speaker matrix (A4.10-A4.12), CI run on GitHub.
+
 **2026-10-21 - H21 done (retention, session deletion, account deletion, export).**
 
 | ID | Status | What changed | Proof |
@@ -439,14 +445,14 @@ an automated test where practical (Spring `MockMvc`/Testcontainers, `pytest`, or
 
 Ship only when **all** are true:
 
-- [ ] Part A tasks done (A1, A2, A4 are all in scope), or each explicitly descoped in the release notes.
+- [ ] Part A tasks done (A1, A2, A4 are all in scope), or each explicitly descoped in the release notes. **A1 and A2 done; A4.8-A4.12 open.**
 - [ ] All P0 and P1 items in Part B fixed or formally risk-accepted with an owner and a date. H1 needs its interim mitigation (see "Future work") at minimum.
-- [ ] RLS (R1-R8) in place and its tests green, with the app-level checks still enabled.
-- [ ] Every cell of the C2 role matrix and every C3 isolation test passes, and runs in CI.
+- [x] RLS (R1-R8) in place and its tests green, with the app-level checks still enabled.
+- [x] Every cell of the C2 role matrix and every C3 isolation test passes (CI workflow written, not yet run on GitHub).
 - [ ] No High/Critical findings open from C4, C6, C8, C10, C11.
 - [ ] Production startup refuses default secrets (C8), and TLS/headers pass (C7).
 - [ ] Backup restore tested (C9). Incident contact and a rollback path documented.
-- [ ] A short **security test report** is committed (what was run, versions, results, accepted risks).
+- [~] A short **security test report** is committed (`docs/security-test-report.md`, draft: lists what is not yet run) (what was run, versions, results, accepted risks).
 
 ## Suggested order of work
 
