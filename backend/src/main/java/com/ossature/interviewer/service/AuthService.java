@@ -50,7 +50,7 @@ public class AuthService {
         } catch (DataIntegrityViolationException e) {
             throw new EmailAlreadyExistsException(email);
         }
-        return AuthResponse.of(jwt.issue(user.getId(), user.getEmail()), user, ownerPolicy.isOwner(user.getEmail()));
+        return respond(user);
     }
 
     public AuthResponse login(LoginRequest req) {
@@ -62,7 +62,17 @@ public class AuthService {
         if (account == null || !matches) {
             throw new InvalidCredentialsException();
         }
-        User user = account;
-        return AuthResponse.of(jwt.issue(user.getId(), user.getEmail()), user, ownerPolicy.isOwner(user.getEmail()));
+        return respond(account);
+    }
+
+    /** A fresh access token for an existing login session (the refresh flow); empty if the account is gone. */
+    @Transactional(readOnly = true)
+    public java.util.Optional<AuthResponse> sessionFor(java.util.UUID userId) {
+        return users.findById(userId).map(this::respond);
+    }
+
+    private AuthResponse respond(User user) {
+        return AuthResponse.of(jwt.issue(user.getId(), user.getEmail()), jwt.expirySeconds(), user,
+                ownerPolicy.isOwner(user.getEmail()));
     }
 }

@@ -53,10 +53,20 @@ ossature:
     # HS256 needs >= 256 bits; this dev default is long enough but is not a secret - set
     # JWT_SECRET for anything beyond a local box.
     jwt-secret: ${JWT_SECRET:dev-only-insecure-jwt-secret-change-me-before-deploying-anywhere}
-    jwt-expiry: 24h
+    # Access token lifetime. Short on purpose (H10): the browser keeps it in memory only and renews it with
+    # the refresh cookie (see ossature.refresh), so a stolen access token is useful for minutes, not a day.
+    jwt-expiry: 15m
     # Comma-separated emails granted the owner role (question-review workflow, PRD 9).
     # Blank by default - nobody is owner until this is set.
     owner-emails: ${OWNER_EMAILS:}
+  refresh:
+    # Login sessions (H10): rotating refresh token in an httpOnly, SameSite=Strict cookie.
+    remember-ttl: 30d
+    session-ttl: 12h
+    reuse-grace: 10s
+    # Browsers refuse Secure cookies on plain http (Safari even on localhost), so local development
+    # sets this false; production refuses to start unless it is true (ProductionSafetyCheck).
+    cookie-secure: ${COOKIE_SECURE:false}
   rate-limit:
     # Brute-force guard on /api/auth/login, three layers (see AppProperties.RateLimit):
     #  - per (account, source IP): stops one address hammering one account

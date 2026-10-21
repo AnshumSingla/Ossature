@@ -29,13 +29,13 @@ public class ProductionSafetyCheck {
         return password == null || password.isBlank() || DEV_DB_PASSWORDS.contains(password);
     }
 
-    public ProductionSafetyCheck(AppProperties props,
+    public ProductionSafetyCheck(AppProperties props, RefreshProperties refresh,
                                  @Value("${spring.datasource.username:}") String appUser,
                                  @Value("${spring.datasource.password:}") String appPassword,
                                  @Value("${spring.flyway.user:}") String migrationUser,
                                  @Value("${spring.flyway.password:}") String migrationPassword,
                                  @Value("${spring.flyway.placeholders.agentDbPassword:}") String agentPassword) {
-        List<String> problems = problems(props, new DbSettings(appUser, appPassword, migrationUser, migrationPassword, agentPassword));
+        List<String> problems = problems(props, new DbSettings(appUser, appPassword, migrationUser, migrationPassword, agentPassword), refresh);
         if (!problems.isEmpty()) {
             throw new IllegalStateException(
                     "Refusing to start with the 'prod' profile - insecure configuration:\n  - "
@@ -44,7 +44,15 @@ public class ProductionSafetyCheck {
     }
 
     static List<String> problems(AppProperties props, DbSettings db) {
+        return problems(props, db, new RefreshProperties(null, null, null, true, null));
+    }
+
+    static List<String> problems(AppProperties props, DbSettings db, RefreshProperties refresh) {
         List<String> problems = new ArrayList<>();
+
+        if (refresh != null && !refresh.cookieSecure()) {
+            problems.add("ossature.refresh.cookie-secure is false: the login cookie would travel over plain http");
+        }
 
         String jwt = props.auth() == null ? null : props.auth().jwtSecret();
         if (jwt == null || jwt.isBlank() || jwt.startsWith(DEV_JWT_SECRET_PREFIX)) {

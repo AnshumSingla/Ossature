@@ -14,7 +14,8 @@ import { SubmitQuestionPage } from './pages/SubmitQuestionPage';
 import { ReviewQuestionsPage } from './pages/ReviewQuestionsPage';
 
 function RequireAuth({ children }: { children: React.ReactElement }) {
-  const { user } = useAuth();
+  const { user, restoring } = useAuth();
+  if (restoring) return null; // a remembered login is being confirmed with the server: don't flash the login page
   return user ? children : <Navigate to="/login" replace />;
 }
 
@@ -30,7 +31,8 @@ function GlobalThemeToggle() {
 
 // "/" is the public landing page until you sign in, then it's the question bank.
 function RootRoute() {
-  const { user } = useAuth();
+  const { user, restoring } = useAuth();
+  if (restoring) return null;
   return user ? <HomePage /> : <LandingPage />;
 }
 

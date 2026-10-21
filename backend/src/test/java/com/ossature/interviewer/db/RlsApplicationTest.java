@@ -38,7 +38,7 @@ import org.springframework.transaction.support.TransactionTemplate;
         "spring.datasource.hikari.maximum-pool-size=1", // one connection, so every transaction reuses it
 })
 @EnabledIf("com.ossature.interviewer.db.ScratchDatabase#available")
-class RlsApplicationIT {
+class RlsApplicationTest {
 
     static final ScratchDatabase DB = ScratchDatabase.available() ? ScratchDatabase.create() : null;
 

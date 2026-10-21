@@ -24,11 +24,23 @@ public final class AuthDtos {
 
     // Caps: an unbounded field is free memory/CPU for an attacker (bcrypt hashes whatever it is given).
     public record LoginRequest(@NotBlank @Email @Size(max = 254) String email,
-                               @NotBlank @Size(max = 128) String password) {}
+                               @NotBlank @Size(max = 128) String password,
+                               /** "Remember me": a 30-day login instead of one that ends with the browser session. Default on. */
+                               Boolean rememberMe) {
+        public LoginRequest(String email, String password) {
+            this(email, password, null);
+        }
 
-    public record AuthResponse(String token, UUID userId, String email, String displayName, boolean isOwner) {
-        public static AuthResponse of(String token, User u, boolean isOwner) {
-            return new AuthResponse(token, u.getId(), u.getEmail(), u.getDisplayName(), isOwner);
+        public boolean remember() {
+            return rememberMe == null || rememberMe;
+        }
+    }
+
+    /** {@code expiresInSeconds}: lifetime of {@code token} (the in-memory access token), so the client knows when to refresh. */
+    public record AuthResponse(String token, long expiresInSeconds, UUID userId, String email, String displayName,
+                               boolean isOwner) {
+        public static AuthResponse of(String token, long expiresInSeconds, User u, boolean isOwner) {
+            return new AuthResponse(token, expiresInSeconds, u.getId(), u.getEmail(), u.getDisplayName(), isOwner);
         }
     }
 }

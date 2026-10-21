@@ -22,7 +22,7 @@ export function LoginPage() {
     if (problems.length) return;
     setBusy(true);
     try {
-      const res = await api.login(email, password);
+      const res = await api.login(email, password, remember);
       login(res, remember);
       navigate('/');
     } catch (e) {

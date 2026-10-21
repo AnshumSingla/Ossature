@@ -66,11 +66,12 @@ class WsTicketServiceTest {
     }
 
     @Test
-    void loginTokensIssuedBeforeTheTypeClaimExistedStillWork() {
+    void tokensIssuedBeforeTheTypeIssuerAndAudienceClaimsExistedAreNoLongerAccepted() {
         String legacy = Jwts.builder().subject(user.toString()).claim("email", "a@x.com")
                 .expiration(new Date(System.currentTimeMillis() + 60_000))
                 .signWith(Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8))).compact();
-        assertThat(jwt.verify(legacy)).contains(user);
+        // Old 24 h tokens stop working on upgrade (users sign in again); that is the point of H10.
+        assertThat(jwt.verify(legacy)).isEmpty();
     }
 
     @Test

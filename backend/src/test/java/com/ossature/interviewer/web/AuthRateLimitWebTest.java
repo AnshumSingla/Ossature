@@ -1,12 +1,14 @@
 package com.ossature.interviewer.web;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.ossature.interviewer.config.AppProperties;
+import com.ossature.interviewer.config.RefreshProperties;
 import com.ossature.interviewer.security.JwtAuthFilter;
 import com.ossature.interviewer.security.JwtService;
 import com.ossature.interviewer.security.OwnerPolicy;
@@ -14,7 +16,9 @@ import com.ossature.interviewer.security.SecurityConfig;
 import com.ossature.interviewer.service.AuthService;
 import com.ossature.interviewer.service.InvalidCredentialsException;
 import com.ossature.interviewer.service.RateLimiter;
+import com.ossature.interviewer.service.RefreshTokenService;
 import com.ossature.interviewer.web.dto.AuthDtos.AuthResponse;
+import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -60,11 +64,12 @@ import org.springframework.test.web.servlet.ResultActions;
 class AuthRateLimitWebTest {
 
     @TestConfiguration
-    @EnableConfigurationProperties(AppProperties.class)
+    @EnableConfigurationProperties({AppProperties.class, RefreshProperties.class})
     static class Props {}
 
     @Autowired MockMvc mvc;
     @MockitoBean AuthService auth;
+    @MockitoBean RefreshTokenService refreshTokens;
 
     // The RateLimiter is a singleton shared by every test in this class, so each test gets its own
     // account (JUnit makes a new instance per test) or budgets would leak between scenarios.
@@ -79,7 +84,9 @@ class AuthRateLimitWebTest {
     }
 
     private ResultActions signup(String email, String fromIp) throws Exception {
-        doReturn(new AuthResponse("t", UUID.randomUUID(), email, "n", false)).when(auth).signup(any());
+        UUID id = UUID.randomUUID();
+        doReturn(new AuthResponse("t", 900, id, email, "n", false)).when(auth).signup(any());
+        doReturn(new RefreshTokenService.Issued(id, "refresh-token", true, Instant.now().plusSeconds(60))).when(refreshTokens).start(any(), anyBoolean());
         return mvc.perform(post("/api/auth/signup").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"email\":\"" + email + "\",\"password\":\"Passw0rd1\",\"displayName\":\"n\"}")
                 .with(req -> { req.setRemoteAddr(fromIp); return req; }));

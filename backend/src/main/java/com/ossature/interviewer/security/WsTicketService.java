@@ -37,6 +37,7 @@ public class WsTicketService {
 
     public static final Duration DEFAULT_TTL = Duration.ofSeconds(30);
     static final String TYPE = "ws";
+    static final String AUDIENCE = "ossature-ws";
 
     private final SecretKey key;
     private final Duration ttl;
@@ -70,6 +71,8 @@ public class WsTicketService {
     public String issue(UUID userId, UUID sessionId) {
         Instant now = Instant.now();
         return Jwts.builder()
+                .issuer(JwtService.ISSUER)
+                .audience().add(AUDIENCE).and()
                 .id(UUID.randomUUID().toString())
                 .subject(userId.toString())
                 .claim("typ", TYPE)
@@ -89,7 +92,8 @@ public class WsTicketService {
             return Optional.empty();
         }
         try {
-            var payload = Jwts.parser().verifyWith(key).build().parseSignedClaims(ticket).getPayload();
+            var payload = Jwts.parser().verifyWith(key).requireIssuer(JwtService.ISSUER).requireAudience(AUDIENCE)
+                    .build().parseSignedClaims(ticket).getPayload();
             if (!TYPE.equals(payload.get("typ", String.class))
                     || !sessionId.equals(payload.get("sid", String.class))
                     || payload.getId() == null) {

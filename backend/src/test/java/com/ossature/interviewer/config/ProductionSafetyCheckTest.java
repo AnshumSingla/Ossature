@@ -64,7 +64,7 @@ class ProductionSafetyCheckTest {
     @Test
     void constructorThrowsWithAllProblemsListed() {
         var p = props("", "", List.of());
-        assertThatThrownBy(() -> new ProductionSafetyCheck(p, "", "", "", "", ""))
+        assertThatThrownBy(() -> new ProductionSafetyCheck(p, new com.ossature.interviewer.config.RefreshProperties(null, null, null, true, null), "", "", "", "", ""))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("JWT_SECRET")
                 .hasMessageContaining("AGENT_SHARED_SECRET");

@@ -1,9 +1,8 @@
 // Thin REST client for the Spring Boot session lifecycle API (PRD 6.2).
 
-import { getToken } from './auth';
+import { session } from './session';
+import type { SessionInfo } from './sessionManager';
 import type { Diagram, ReplayMessage } from '../types/protocol';
-
-const BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080';
 
 // Carries the server's own explanation (Spring's ProblemDetail `detail`) so screens can show
 // the real reason a request failed instead of a guess.
@@ -28,13 +27,10 @@ export function errorMessage(e: unknown): string {
 }
 
 async function json<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = getToken();
-  const res = await fetch(`${BASE}${path}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
+  // session.authFetch adds the in-memory access token and, on a 401, refreshes it once and retries.
+  const res = await session.authFetch(path, {
     ...init,
+    headers: { 'Content-Type': 'application/json' },
   });
   if (!res.ok) {
     const body = await res.json().catch(() => null);
@@ -51,10 +47,7 @@ async function json<T>(path: string, init?: RequestInit): Promise<T> {
 // Spring writes an empty body for a null String, which `res.json()` can't parse, so these
 // two need their own empty-body-means-null handling instead of the generic helper above.
 async function jsonOrNull<T>(path: string): Promise<T | null> {
-  const token = getToken();
-  const res = await fetch(`${BASE}${path}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
+  const res = await session.authFetch(path);
   if (!res.ok) {
     throw new Error(`GET ${path} -> ${res.status}`);
   }
@@ -82,13 +75,7 @@ export interface SessionView {
   endedAt: string | null;
 }
 
-export interface AuthResponse {
-  token: string;
-  userId: string;
-  email: string;
-  displayName: string;
-  isOwner: boolean;
-}
+export type AuthResponse = SessionInfo;
 
 export interface DebriefPayload {
   strengths: string[];
@@ -98,15 +85,18 @@ export interface DebriefPayload {
 }
 
 export const api = {
+  // credentials: 'include' so the browser accepts the httpOnly refresh cookie these calls set.
   signup: (email: string, password: string, displayName: string) =>
     json<AuthResponse>('/api/auth/signup', {
       method: 'POST',
+      credentials: 'include',
       body: JSON.stringify({ email, password, displayName }),
     }),
-  login: (email: string, password: string) =>
+  login: (email: string, password: string, rememberMe: boolean) =>
     json<AuthResponse>('/api/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      credentials: 'include',
+      body: JSON.stringify({ email, password, rememberMe }),
     }),
   listQuestions: () => json<QuestionView[]>('/api/questions'),
   getQuestion: (id: string) => json<QuestionView>(`/api/questions/${id}`),

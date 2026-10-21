@@ -2,6 +2,9 @@
 # environment (JWT_SECRET, POSTGRES_PASSWORD, AGENT_SHARED_SECRET, OWNER_EMAILS, CORS origins);
 # ProductionSafetyCheck refuses to start if the development defaults are still in use.
 ossature:
+  refresh:
+    # The login cookie is sent over https only (the safety check refuses to start otherwise).
+    cookie-secure: true
   cors:
     # Override with your real frontend origin(s): OSSATURE_CORS_ALLOWED_ORIGINS_0=https://app.example.com
     allowed-origins: []
