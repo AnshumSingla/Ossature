@@ -19,4 +19,12 @@ public interface InterviewSessionRepository extends JpaRepository<InterviewSessi
     List<InterviewSession> findByUserIdOrderByStartedAtDesc(UUID userId);
 
     List<InterviewSession> findByState(SessionState state);
+
+    /** For the retention purge (in the 'retention' scope, which only ever sees sessions older than 30 days). */
+    List<InterviewSession> findByStartedAtBefore(java.time.Instant cutoff);
+
+    @Transactional
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query("delete from InterviewSession s where s.userId = :userId")
+    int deleteAllOwnedBy(@org.springframework.data.repository.query.Param("userId") UUID userId);
 }

@@ -25,6 +25,7 @@ export function HomePage() {
         <nav className="app-nav">
           <Link to="/history">History</Link>
           <Link to="/submit-question">Submit a question</Link>
+          <Link to="/account">Your data</Link>
           {user?.isOwner && <Link to="/review">Review submissions</Link>}
         </nav>
         <div className="user">

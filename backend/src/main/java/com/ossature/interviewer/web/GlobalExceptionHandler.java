@@ -37,6 +37,12 @@ public class GlobalExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, ex.getMessage());
     }
 
+    /** 403, not 401: the person IS signed in (a 401 would make the client try to refresh their session). */
+    @ExceptionHandler(com.ossature.interviewer.service.WrongPasswordException.class)
+    public ProblemDetail onWrongPassword(com.ossature.interviewer.service.WrongPasswordException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());
+    }
+
     @ExceptionHandler(TooManyRequestsException.class)
     public ProblemDetail onTooManyRequests(TooManyRequestsException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage());

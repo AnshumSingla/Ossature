@@ -1196,3 +1196,27 @@ button.link-button {
   line-height: 1.55;
   color: var(--text-h);
 }
+
+/* --- Session history / account actions --- */
+.card-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.account-section {
+  margin-top: 28px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.account-section.danger {
+  border-color: var(--danger, #b3412f);
+}
+
+.account-section .glass-field,
+.account-section input {
+  max-width: 360px;
+}

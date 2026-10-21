@@ -16,4 +16,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 @Transactional(readOnly = true)
 public interface UserRepository extends JpaRepository<User, UUID> {
     Optional<User> findByEmail(String email);
+
+    @Transactional
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query("delete from User u where u.id = :id")
+    int deleteAccount(@org.springframework.data.repository.query.Param("id") UUID id);
 }

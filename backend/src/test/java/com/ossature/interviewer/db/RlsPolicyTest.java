@@ -182,8 +182,14 @@ class RlsPolicyTest {
     @Test
     void theApplicationRoleHoldsOnlyTheGrantsTheCodeNeeds() throws Exception {
         try (Connection c = db.app(); Statement s = c.createStatement()) {
-            assertThatThrownBy(() -> s.execute("DELETE FROM interview_sessions")).hasMessageContaining("permission denied");
-            assertThatThrownBy(() -> s.execute("DELETE FROM users")).hasMessageContaining("permission denied");
+            // Deleting sessions, questions and accounts is granted since V11 (H21) - but only through the policies:
+            // with no acting user (or no auth scope) such a statement matches nothing.
+            assertThat(s.executeUpdate("DELETE FROM interview_sessions")).isZero();
+            assertThat(s.executeUpdate("DELETE FROM users")).isZero();
+            assertThat(s.executeUpdate("DELETE FROM questions")).isZero();
+            // Events and summaries are never deleted directly, only by the cascade from their session.
+            assertThatThrownBy(() -> s.execute("DELETE FROM session_events")).hasMessageContaining("permission denied");
+            assertThatThrownBy(() -> s.execute("DELETE FROM interim_summaries")).hasMessageContaining("permission denied");
             assertThatThrownBy(() -> s.execute("UPDATE users SET email = 'x'")).hasMessageContaining("permission denied");
             assertThatThrownBy(() -> s.execute("TRUNCATE session_events")).hasMessageContaining("permission denied");
             assertThatThrownBy(() -> s.executeQuery("SELECT * FROM agent_sessions")).hasMessageContaining("permission denied");

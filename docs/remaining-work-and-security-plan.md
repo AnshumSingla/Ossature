@@ -35,6 +35,14 @@ Found while doing it: Spring Data runs derived query methods outside any transac
 
 Live end-to-end check (dev database migrated to V8, backend running as `ossature_app`): signup, login, session create/list/read, events, summaries, debrief and diagram for the owner (200) versus another user (404), the pending-question workflow, non-owner moderation (403), WebSocket ticket flow (ticket reuse and another user's ticket refused), and a message sent over the socket is stored under the right user. Full backend suite: 95 passing, plus `RlsApplicationTest` (7).
 
+**2026-10-21 - H21 done (retention, session deletion, account deletion, export).**
+
+| ID | Status | What changed | Proof |
+|----|--------|--------------|-------|
+| H21 | Done (privacy-notice wording and backup policy are decisions for you - see `docs/data-retention.md`) | **Policy written** (`docs/data-retention.md`: every kind of personal data, where, why, how long, what leaves the system - notably that candidate speech goes to the LLM provider - and the accepted limits: backups, logs, provider copy). **Delete an interview** (`DELETE /api/sessions/{id}`; owner only) with its events, summaries, debrief and the agent's working copy. **Delete the account** (`POST /api/account/delete`, password required, one transaction, rolls back completely if anything fails): all interviews, unpublished question submissions, all login sessions and the account row go; approved submissions stay in the bank unlinked from the person; the cookie is cleared. **Download your data** (`GET /api/account/export`). **Automatic retention:** `RetentionJob` deletes interviews older than `ossature.retention.session-days` (default 365, 0 = off, minimum 30) daily on one instance; the *database* enforces a 30-day floor for it (migration V11), so even a wrong setting cannot delete recent interviews. UI: Delete on History (two-step), a "Your data" page (download + delete account) | 9 real-database tests (cross-user deletion refused, everything of theirs removed and nothing of anyone else's, wrong password deletes nothing, deletion outside the auth scope rolls back, export contains only their data, retention purges only old interviews, floor holds against a "delete everything" cutoff), 4 + 3 web tests; 4 mutation checks (floor, password check, unpublished-question deletion, token deletion) all fail the right tests; **live in a real browser:** history delete removed the session, its events and the agent copy; wrong password shows "That password isn't correct." and deletes nothing; correct password deletes the account, returns to the landing page with storage cleared. The RLS guard test now pins the V11 grants. Backend suite 163 passing |
+
+Not done: a visible privacy notice at signup (wording and legal review are yours to decide) and a backup-retention/restore procedure (Part C9/D).
+
 **2026-10-21 - H20 done (dependency and image hygiene).**
 
 | ID | Status | What changed | Proof |
@@ -305,7 +313,7 @@ estimate pending confirmation in Part C.
 | H18 | **Least-privilege DB users** - delivered as part of R2: separate roles for Flyway (DDL), backend (DML) and agent (its own table only). | (in R2) |
 | H19 | **404 vs 403 on sessions** reveals whether a session ID exists. Return 404 for both. **Done via RLS (see Progress).** | S |
 | H20 | **Done 2026-10-21 (see Progress).** **Dependency and image hygiene:** pin versions, enable Dependabot or Renovate, scan images, produce an SBOM. | M |
-| H21 | **Data retention and deletion:** transcripts and debriefs are personal data; define retention, add account/session deletion. | M |
+| H21 | **Done 2026-10-21 (see Progress).** **Data retention and deletion:** transcripts and debriefs are personal data; define retention, add account/session deletion. | M |
 
 ### B2. Row-Level Security (H17 / H18) - task series
 

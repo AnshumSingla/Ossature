@@ -1,7 +1,6 @@
 package com.ossature.interviewer.web;
 
 import com.ossature.interviewer.config.AppProperties;
-import com.ossature.interviewer.config.RefreshProperties;
 import com.ossature.interviewer.db.DbContext;
 import com.ossature.interviewer.service.AuthService;
 import com.ossature.interviewer.service.Emails;
@@ -12,24 +11,20 @@ import com.ossature.interviewer.service.TooManyRequestsException;
 import com.ossature.interviewer.web.dto.AuthDtos.AuthResponse;
 import com.ossature.interviewer.web.dto.AuthDtos.LoginRequest;
 import com.ossature.interviewer.web.dto.AuthDtos.SignupRequest;
-import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
-import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
-import org.springframework.web.util.WebUtils;
 
 /**
  * Sign-up, login, and the refresh-token session (H10).
@@ -47,22 +42,21 @@ public class AuthController {
 
     /** Set by the web client on cookie-authenticated calls; its presence is the CSRF check. */
     static final String CLIENT_HEADER = "X-Ossature-Client";
-    static final String COOKIE_PATH = "/api/auth";
     private static final int REFRESH_MAX_PER_IP = 60;
     private static final long REFRESH_WINDOW_MS = Duration.ofMinutes(5).toMillis();
 
     private final AuthService auth;
     private final RefreshTokenService refreshTokens;
-    private final RefreshProperties refreshProps;
+    private final RefreshCookies cookies;
     private final RateLimiter rateLimiter;
     private final AppProperties.RateLimit limits;
     private final List<String> allowedOrigins;
 
-    public AuthController(AuthService auth, RefreshTokenService refreshTokens, RefreshProperties refreshProps,
+    public AuthController(AuthService auth, RefreshTokenService refreshTokens, RefreshCookies cookies,
                           RateLimiter rateLimiter, AppProperties props) {
         this.auth = auth;
         this.refreshTokens = refreshTokens;
-        this.refreshProps = refreshProps;
+        this.cookies = cookies;
         this.rateLimiter = rateLimiter;
         this.limits = props.rateLimit();
         this.allowedOrigins = props.cors() == null || props.cors().allowedOrigins() == null
@@ -91,60 +85,35 @@ public class AuthController {
         if (!rateLimiter.allow("refresh:ip:" + clientIp(http), REFRESH_MAX_PER_IP, REFRESH_WINDOW_MS)) {
             throw new TooManyRequestsException("Too many session refreshes from this address - try again shortly");
         }
-        String presented = presentedToken(http);
+        String presented = cookies.presented(http);
         Optional<Issued> next = DbContext.callInScope(DbContext.SCOPE_AUTH, () -> refreshTokens.rotate(presented));
         Optional<AuthResponse> body = next.flatMap(i ->
                 DbContext.callInScope(DbContext.SCOPE_AUTH, () -> auth.sessionFor(i.userId())));
         if (next.isEmpty() || body.isEmpty()) {
             ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED,
                     "Your session has ended. Please log in again.");
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).header(HttpHeaders.SET_COOKIE, clearedCookie().toString()).body(pd);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).header(HttpHeaders.SET_COOKIE, cookies.cleared().toString()).body(pd);
         }
-        return ResponseEntity.ok().header(HttpHeaders.SET_COOKIE, cookie(next.get()).toString()).body(body.get());
+        return ResponseEntity.ok().header(HttpHeaders.SET_COOKIE, cookies.issue(next.get()).toString()).body(body.get());
     }
 
     /** Ends this login session on the server (revokes the refresh chain) and clears the cookie. */
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(HttpServletRequest http) {
         requireOurOwnClient(http);
-        String presented = presentedToken(http);
+        String presented = cookies.presented(http);
         DbContext.callInScope(DbContext.SCOPE_AUTH, () -> {
             refreshTokens.end(presented);
             return null;
         });
-        return ResponseEntity.noContent().header(HttpHeaders.SET_COOKIE, clearedCookie().toString()).build();
+        return ResponseEntity.noContent().header(HttpHeaders.SET_COOKIE, cookies.cleared().toString()).build();
     }
 
     // ------------------------------------------------------------------ cookie and CSRF
 
     private ResponseEntity<AuthResponse> respond(HttpStatus status, AuthResponse body, boolean persistent) {
         Issued session = DbContext.callInScope(DbContext.SCOPE_AUTH, () -> refreshTokens.start(body.userId(), persistent));
-        return ResponseEntity.status(status).header(HttpHeaders.SET_COOKIE, cookie(session).toString()).body(body);
-    }
-
-    private ResponseCookie cookie(Issued session) {
-        ResponseCookie.ResponseCookieBuilder b = baseCookie(session.token());
-        if (session.persistent()) {
-            b.maxAge(Duration.between(Instant.now(), session.expiresAt()));
-        } // else a browser-session cookie: gone when the browser closes
-        return b.build();
-    }
-
-    private ResponseCookie clearedCookie() {
-        return baseCookie("").maxAge(0).build();
-    }
-
-    private ResponseCookie.ResponseCookieBuilder baseCookie(String value) {
-        return ResponseCookie.from(refreshProps.cookieName(), value)
-                .httpOnly(true)
-                .secure(refreshProps.cookieSecure())
-                .sameSite("Strict")
-                .path(COOKIE_PATH);
-    }
-
-    private String presentedToken(HttpServletRequest http) {
-        Cookie c = WebUtils.getCookie(http, refreshProps.cookieName());
-        return c == null ? null : c.getValue();
+        return ResponseEntity.status(status).header(HttpHeaders.SET_COOKIE, cookies.issue(session).toString()).body(body);
     }
 
     private void requireOurOwnClient(HttpServletRequest http) {

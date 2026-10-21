@@ -26,6 +26,8 @@ public final class DbContext {
     /** Names that the policies in V7 recognise. Anything else matches no scoped policy. */
     public static final String SCOPE_AUTH = "auth";
     public static final String SCOPE_SCHEDULER = "scheduler";
+    /** The data-retention purge: may delete sessions older than the database's 30-day floor, nothing else. */
+    public static final String SCOPE_RETENTION = "retention";
 
     public record Ctx(UUID userId, boolean owner, String scope) {}
 
@@ -62,6 +64,11 @@ public final class DbContext {
     /** Runs {@code body} in a named scope with no user (login/signup, the scheduler's session listing). */
     public static <T> T callInScope(String scope, Supplier<T> body) {
         return with(new Ctx(null, false, scope), body);
+    }
+
+    /** Acting as {@code userId} and, additionally, in {@code scope} (account deletion: your own rows, in the auth scope). */
+    public static <T> T callAsInScope(UUID userId, String scope, Supplier<T> body) {
+        return with(new Ctx(userId, false, scope), body);
     }
 
     private static <T> T with(Ctx ctx, Supplier<T> body) {

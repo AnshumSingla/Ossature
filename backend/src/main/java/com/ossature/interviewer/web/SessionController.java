@@ -67,6 +67,15 @@ public class SessionController {
         return sessions.listForUser(userId(auth)).stream().map(SessionView::of).toList();
     }
 
+    /** Deletes this interview (transcript, diagram, summaries, debrief) permanently. */
+    @org.springframework.web.bind.annotation.DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable UUID id, Authentication auth) {
+        owned(id, auth);
+        sessions.delete(id);
+        sessions.forgetAgentState(id);
+    }
+
     @GetMapping("/{id}")
     public SessionView get(@PathVariable UUID id, Authentication auth) {
         return SessionView.of(owned(id, auth));

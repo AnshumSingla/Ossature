@@ -114,6 +114,13 @@ export const api = {
       body: JSON.stringify({ questionId }),
     }),
   getSession: (id: string) => json<SessionView>(`/api/sessions/${id}`),
+  /** Permanently deletes one of your interviews (transcript, diagram, summaries, debrief). */
+  deleteSession: (id: string) => json<void>(`/api/sessions/${id}`, { method: 'DELETE' }),
+  /** Everything stored about you, as one JSON document. */
+  exportAccount: () => json<Record<string, unknown>>('/api/account/export'),
+  /** Permanently deletes your account and all your data. Needs your password again. */
+  deleteAccount: (password: string) =>
+    json<void>('/api/account/delete', { method: 'POST', body: JSON.stringify({ password }) }),
   /** One-time, 30-second ticket for opening this session's WebSocket (replaces the login token in the URL). */
   wsTicket: (id: string) =>
     json<{ ticket: string; expiresInSeconds: number }>(`/api/sessions/${id}/ws-ticket`, { method: 'POST' }),

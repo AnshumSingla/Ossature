@@ -20,4 +20,19 @@ public interface QuestionRepository extends JpaRepository<Question, UUID> {
     List<Question> findByStatus(QuestionStatus status);
 
     Optional<Question> findBySlug(String slug);
+
+    List<Question> findBySubmittedByOrderByCreatedAtAsc(UUID submittedBy);
+
+    /** A leaving user's unpublished submissions (pending / rejected) are deleted outright... */
+    @Transactional
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query(
+            "delete from Question q where q.submittedBy = :userId and q.status <> com.ossature.interviewer.domain.QuestionStatus.APPROVED")
+    int deleteUnpublishedBy(@org.springframework.data.repository.query.Param("userId") UUID userId);
+
+    /** ...while approved ones are part of the public bank and just lose the link to the person. */
+    @Transactional
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query("update Question q set q.submittedBy = null where q.submittedBy = :userId")
+    int anonymiseSubmissionsBy(@org.springframework.data.repository.query.Param("userId") UUID userId);
 }

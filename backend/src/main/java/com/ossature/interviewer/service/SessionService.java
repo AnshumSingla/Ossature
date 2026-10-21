@@ -86,6 +86,21 @@ public class SessionService {
         return sessions.findByUserIdOrderByStartedAtDesc(userId);
     }
 
+    /** Deletes one of the caller's own sessions with its events and summaries (anyone else's is "unknown"). */
+    @Transactional
+    public void delete(UUID id) {
+        sessions.delete(get(id));
+    }
+
+    /** Drops the interviewer service's working copy of a deleted session. Best effort: it would only linger. */
+    public void forgetAgentState(UUID sessionId) {
+        try {
+            agent.endSession(sessionId.toString());
+        } catch (RuntimeException e) {
+            LogSafe.warn(log, "Agent cleanup failed for deleted session {} (harmless)", e, sessionId);
+        }
+    }
+
     @Transactional
     public InterviewSession end(UUID id, String debriefJson) {
         InterviewSession session = get(id);

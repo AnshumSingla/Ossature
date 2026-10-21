@@ -44,7 +44,7 @@ import org.springframework.test.web.servlet.ResultActions;
  * logout (which authenticate by cookie alone) refuse a request that is not from our own web client.
  */
 @WebMvcTest(controllers = AuthController.class)
-@Import({SecurityConfig.class, JwtAuthFilter.class, JwtService.class, OwnerPolicy.class, RateLimiter.class,
+@Import({SecurityConfig.class, JwtAuthFilter.class, JwtService.class, OwnerPolicy.class, RateLimiter.class, RefreshCookies.class,
         RequestSizeLimitFilter.class, AuthSessionWebTest.Props.class})
 @TestPropertySource(properties = {
         "ossature.auth.jwt-secret=test-secret-test-secret-test-secret-0123456789",

@@ -40,7 +40,7 @@ import org.springframework.test.web.servlet.ResultActions;
  * real user's login budget, either by guessing from their own address or by sending signups.
  */
 @WebMvcTest(controllers = AuthController.class)
-@Import({SecurityConfig.class, JwtAuthFilter.class, JwtService.class, OwnerPolicy.class, RateLimiter.class,
+@Import({SecurityConfig.class, JwtAuthFilter.class, JwtService.class, OwnerPolicy.class, RateLimiter.class, RefreshCookies.class,
         RequestSizeLimitFilter.class, AuthRateLimitWebTest.Props.class})
 @TestPropertySource(properties = {
         "ossature.auth.jwt-secret=test-secret-test-secret-test-secret-0123456789",

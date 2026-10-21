@@ -113,4 +113,30 @@ class WsTicketEndpointWebTest {
         mvc.perform(post("/api/sessions/" + sessionId + "/ws-ticket").header("Authorization", "Bearer " + ticket))
                 .andExpect(status().isForbidden());
     }
+
+    // ---- H21: deleting an interview
+
+    @Test
+    void theOwnerCanDeleteTheirSessionAndTheAgentsCopyIsDropped() throws Exception {
+        sessionOwnedByOwner();
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/api/sessions/" + sessionId)
+                .header("Authorization", bearer(owner))).andExpect(status().isNoContent());
+        org.mockito.Mockito.verify(sessions).delete(sessionId);
+        org.mockito.Mockito.verify(sessions).forgetAgentState(sessionId);
+    }
+
+    @Test
+    void anotherUserCannotDeleteSomeoneElsesSession() throws Exception {
+        sessionOwnedByOwner();
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/api/sessions/" + sessionId)
+                .header("Authorization", bearer(stranger))).andExpect(status().isForbidden());
+        org.mockito.Mockito.verify(sessions, org.mockito.Mockito.never()).delete(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void anonymousCallersCannotDeleteAnything() throws Exception {
+        sessionOwnedByOwner();
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/api/sessions/" + sessionId))
+                .andExpect(status().isForbidden());
+    }
 }

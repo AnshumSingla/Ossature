@@ -12,6 +12,7 @@ import { HistoryPage } from './pages/HistoryPage';
 import { SessionReplayPage } from './pages/SessionReplayPage';
 import { SubmitQuestionPage } from './pages/SubmitQuestionPage';
 import { ReviewQuestionsPage } from './pages/ReviewQuestionsPage';
+import { AccountPage } from './pages/AccountPage';
 
 function RequireAuth({ children }: { children: React.ReactElement }) {
   const { user, restoring } = useAuth();
@@ -71,6 +72,14 @@ export default function App() {
           element={
             <RequireAuth>
               <HistoryPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/account"
+          element={
+            <RequireAuth>
+              <AccountPage />
             </RequireAuth>
           }
         />
