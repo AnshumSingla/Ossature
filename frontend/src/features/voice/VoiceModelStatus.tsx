@@ -14,7 +14,7 @@ export function VoiceModelStatus() {
   if (status.state === 'loading') {
     return (
       <p className="voice-model-status" role="status">
-        Preparing voice input… {Math.round(status.progress * 100)}% (one-time download, runs on this device)
+        Preparing voice input… {Math.round(status.progress * 100)}% (one-time download, runs on this device, English only)
       </p>
     );
   }
@@ -30,7 +30,7 @@ export function VoiceModelStatus() {
   }
   return (
     <p className="voice-model-status" role="status">
-      Voice input ready - runs on this device.
+      Voice input ready - runs on this device (English only).
     </p>
   );
 }

@@ -4,6 +4,7 @@ import { useInterviewSocket } from '../../hooks/useInterviewSocket';
 import { speak } from '../../hooks/useSpeech';
 import { useLocalSpeechRecognition } from '../../hooks/useLocalSpeech';
 import { useWhiteboardStore } from '../whiteboard/whiteboardStore';
+import { correctJargon } from '../voice/jargon';
 import { Whiteboard } from '../whiteboard/Whiteboard';
 import { DebriefPanel } from '../debrief/DebriefPanel';
 import { TranscriptPanel } from './TranscriptPanel';
@@ -53,7 +54,15 @@ export function InterviewRoom({ sessionId, prompt }: { sessionId: string; prompt
   // Wire finalized utterances -> server (FR2).
   useEffect(() => {
     stt.onFinal((text) => {
-      if (text) sendFinal(text);
+      if (!text) return;
+      // On-device fix-ups for system-design terms the recogniser mishears ("readies" -> Redis), helped by what is
+      // actually drawn on the board right now.
+      const board = useWhiteboardStore.getState();
+      const labels = [
+        ...board.nodes.map((n) => String((n.data as { label?: unknown } | undefined)?.label ?? '')),
+        ...board.edges.map((e) => String(e.label ?? '')),
+      ];
+      sendFinal(correctJargon(text, { labels }));
     });
   }, [stt, sendFinal]);
 
