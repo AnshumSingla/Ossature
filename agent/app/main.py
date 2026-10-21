@@ -32,7 +32,9 @@ async def lifespan(_: FastAPI):
     configure_logging()
     ensure_production_safe()
     store.check_connection()
+    sweeper = turns.start_council_sweeper()  # also resumes Council jobs a previous run left unfinished
     yield
+    sweeper.set()
 
 
 app = FastAPI(title="Ossature Interview Agent", version="0.1.0", lifespan=lifespan)

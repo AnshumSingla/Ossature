@@ -24,9 +24,22 @@ weak trade-offs. For each, return an object with:
 Return a JSON array, most important first, at most 6 items. Output only the JSON array."""
 
 
+NO_REFERENCE_FLAW = {
+    "summary": "No reference solution was available to compare against",
+    "question_prompt": "I don't have a reference to compare against yet, so tell me: what is the single "
+    "biggest point of failure in your design, and how does it cope?",
+    "priority": 1,
+}
+
+
 def review_node(state: InterviewState) -> InterviewState:
     final_diagram = state.get("final_diagram", {})
     reference = state.get("reference_solution", {})
+    if not reference:
+        # No reference to compare against (the Council has not finished, or failed): say so plainly and
+        # keep the interview moving with a generic follow-up, instead of asking a model to "compare" the
+        # diagram with nothing and invent gaps.
+        return {"flaws": [dict(NO_REFERENCE_FLAW)]}
 
     # Node labels in the diagram are typed by the candidate: untrusted.
     model = review_model()

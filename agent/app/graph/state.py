@@ -28,6 +28,13 @@ class InterviewState(TypedDict, total=False):
     reference_solution: dict[str, Any]
     council_running: bool
     council_done: bool
+    # Council job lifecycle (A2). status: pending (needs a runner) | running (claimed) | done | failed.
+    # The claim is a lease {"owner": instance id, "until": epoch seconds}: whoever holds an unexpired one
+    # is running the job; if it dies the lease lapses and any agent may take the job over. `attempts`
+    # caps how often the (paid) job may be started for one session.
+    council_status: str
+    council_claim: dict[str, Any] | None
+    council_attempts: int
 
     # Submit / review (PRD 6.3 node 3).
     final_diagram: dict[str, Any]

@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import logging
 import time
+from datetime import timedelta
 from typing import Any, NamedTuple
 
 from sqlalchemy import (
@@ -181,6 +182,27 @@ def version_of(session_id: str) -> int | None:
         _trip_breaker()
         log.warning("Session-state version check failed for %s.", session_id, exc_info=True)
         return None
+
+
+def find_running_councils(max_age_s: float) -> list[str]:
+    """Sessions whose Council job is unfinished and that were touched recently. The age cut-off keeps
+    abandoned sessions (never ended, never purged) from having a paid job started for them forever."""
+    if _breaker_open():
+        return []
+    try:
+        with _get_engine().connect() as conn:
+            rows = conn.execute(
+                select(_sessions_table.c.session_id).where(
+                    _sessions_table.c.state["council_running"].as_string() == "true",
+                    _sessions_table.c.updated_at >= func.now() - timedelta(seconds=max_age_s),
+                )
+            ).all()
+        _reset_breaker()
+        return [r[0] for r in rows]
+    except Exception:
+        _trip_breaker()
+        log.warning("Looking for unfinished Council jobs failed.", exc_info=True)
+        return []
 
 
 def save(session_id: str, state: dict[str, Any]) -> int | None:

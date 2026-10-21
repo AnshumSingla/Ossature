@@ -35,6 +35,20 @@ Found while doing it: Spring Data runs derived query methods outside any transac
 
 Live end-to-end check (dev database migrated to V8, backend running as `ossature_app`): signup, login, session create/list/read, events, summaries, debrief and diagram for the owner (200) versus another user (404), the pending-question workflow, non-owner moderation (403), WebSocket ticket flow (ticket reuse and another user's ticket refused), and a message sent over the socket is stored under the right user. Full backend suite: 95 passing, plus `RlsApplicationIT` (7).
 
+**2026-10-21 - A2 done (Council survives agent restarts).**
+
+| ID | Status | What changed | Proof |
+|----|--------|--------------|-------|
+| A2.1 | **Done.** Done | The Council job has a persisted lifecycle in the session state: `council_status` (pending / running / done / failed), `council_claim` (a lease: owner + expiry) and `council_attempts` | Lifecycle tests against real Postgres |
+| A2.2 | **Done.** Done | A background sweeper (`turns.start_council_sweeper`, started with the agent and every 30 s after) finds unfinished jobs nobody holds a live lease on - whichever agent started them - and takes them over. Because it runs at startup, a restarted agent picks up what its previous run was doing. The running job renews its lease every 25 s (lease 90 s), so recovery after a crash takes at most about 90 s | **Kill test with a real process:** a child process claims the job and is killed mid-run; this process waits out the lease, resumes and completes it (attempts 2, ran once after the crash) |
+| A2.3 | **Done.** Done | Claiming is a version-checked write, so of several agents trying at once exactly one wins; a job already done or held by a live lease is a no-op; a runner whose lease lapsed cannot overwrite the new owner's result; at most 3 attempts per session (also stops a job that keeps crashing the agent) and only sessions touched in the last 30 min are resumed, so a paid job is never restarted forever or for abandoned sessions | 8 claim/lease/cap tests; mutation checks: removing the live-lease check fails 5 tests, the lease-lost guard 1, the attempt cap 1, the resume step 1 |
+| A2.4 | **Done.** Done | A review with no reference no longer asks a model to compare against nothing (which invents gaps): it waits up to 20 s for a running Council, then returns one plain follow-up that says no reference was available | 3 tests; the review model is not called |
+| A2.5 | **Done.** Done | Automated kill-and-restart test (above), included in `agent/tests/test_council_recovery.py` | 18 tests |
+
+A failed Council attempt is recorded by exception type only (never the message, which can quote the question text). After 3 failed attempts the job is marked `failed` and the interview carries on without a reference (A2.4).
+
+Agent suite: 159 passing (15 live-model probes skipped).
+
 **2026-10-21 - A1.4 - A1.8 done (multi-instance backend and test topology).**
 
 | ID | Status | What changed | Proof |
@@ -175,15 +189,15 @@ A1.5-A1.7 are not listed in `TODO.md` but follow directly from "multi-instance",
 chosen deployment - so they are required. Add A1.8: a two-backend + two-agent compose profile
 used by the security and load tests (Part C) so they run against the real topology.
 
-### A2. Council work lost if the agent restarts mid-generation  (open in TODO)
+### A2. Council work lost if the agent restarts mid-generation  (DONE 2026-10-21, see Progress)
 
 | ID | Task | Size | Done when |
 |----|------|------|-----------|
-| A2.1 | Persist Council job state per session (`pending / running / done / failed`) in the agent store | S | State survives restart |
-| A2.2 | On agent startup, find sessions with a `running` Council job and resume or restart them | M | Killed-mid-run job completes after restart |
-| A2.3 | Idempotency guard so a resumed job can't run twice or double-bill | S | Second trigger is a no-op |
-| A2.4 | Define the fallback when no reference exists yet at Review time (clear message, no crash) | S | Review degrades gracefully |
-| A2.5 | Kill-and-restart test mid-generation | M | Automated or documented manual test |
+| A2.1 | **Done.** Persist Council job state per session (`pending / running / done / failed`) in the agent store | S | State survives restart |
+| A2.2 | **Done.** On agent startup, find sessions with a `running` Council job and resume or restart them | M | Killed-mid-run job completes after restart |
+| A2.3 | **Done.** Idempotency guard so a resumed job can't run twice or double-bill | S | Second trigger is a no-op |
+| A2.4 | **Done.** Define the fallback when no reference exists yet at Review time (clear message, no crash) | S | Review degrades gracefully |
+| A2.5 | **Done.** Kill-and-restart test mid-generation | M | Automated or documented manual test |
 
 ### A3. Housekeeping and optional track
 

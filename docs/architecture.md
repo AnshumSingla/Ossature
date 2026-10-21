@@ -301,6 +301,14 @@ compare-and-set; on a conflict `turns._merge` reloads and redoes its change (A1.
 it needs no routing layer and makes restart recovery and instance hand-off the same code path. The
 rest of this section describes the original single-instance design; read it with that in mind.
 
+**Council job durability (2026-10-21, A2).** The Council runs on a background thread, so a restart used to
+lose it silently (the session then had `council_running` forever and no reference). Its lifecycle is now part
+of the persisted session state: `council_status`, a lease (`council_claim`: owner + expiry, renewed by a
+heartbeat while it runs) and `council_attempts`. `turns.resume_stalled_councils` - run at startup and every 30 s
+- takes over any unfinished job whose lease has lapsed. Claiming, renewing and finishing are all
+version-checked writes (`turns._merge_with`), so a job never runs twice at once and a runner that lost its
+lease cannot overwrite the new owner's result. The cost guard is the attempt cap (3) plus a 30-minute window.
+
 **Backend state shared across instances (2026-10-21, migration V9).** Everything that used to live in one
 backend process now lives in Postgres: rate-limit counters (`rate_limits`, hashed keys), the scheduler lease
 (`scheduler_locks`) and used WebSocket tickets (`ws_ticket_redemptions`). The `SessionSocketRegistry` stays
