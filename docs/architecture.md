@@ -288,10 +288,18 @@ conditions:
 
 Added 2026-09-29. `app/turns.py`'s `_SESSIONS` dict is still the fast path for every read
 and write, but it's now backed by a Postgres table (`agent_sessions`, one row per session,
-whole `InterviewState` as JSONB) — the agent creates and owns this table itself at startup
-(`store.ensure_schema()`), separate from the backend's Flyway-managed schema, on the same
-physical Postgres instance (docker-compose `postgres` service) for operational simplicity
-rather than running a second database.
+whole `InterviewState` as JSONB) on the same physical Postgres instance (docker-compose
+`postgres` service) for operational simplicity rather than running a second database.
+
+**Updated 2026-10-21 (multi-instance, least privilege).** The table is now created by the backend's
+Flyway migration V7, and the agent connects as the restricted `ossature_agent` role, which can touch
+this one table and nothing else (`store.check_connection()` only probes it at startup). Postgres is
+**authoritative**: the in-process `_SESSIONS` dict is a cache validated against the row's `version` on
+every `get_state`, and every write is `store.write_if(..., expected_version)` — an optimistic-lock
+compare-and-set; on a conflict `turns._merge` reloads and redoes its change (A1.1-A1.3 in
+`docs/remaining-work-and-security-plan.md`). This was chosen over sticky routing by session id because
+it needs no routing layer and makes restart recovery and instance hand-off the same code path. The
+rest of this section describes the original single-instance design; read it with that in mind.
 
 This is a working-state cache, not a second system of record — the backend's Postgres
 already holds the durable transcript/diagram/debrief history. So the lifecycle is:

@@ -35,7 +35,17 @@ Found while doing it: Spring Data runs derived query methods outside any transac
 
 Live end-to-end check (dev database migrated to V8, backend running as `ossature_app`): signup, login, session create/list/read, events, summaries, debrief and diagram for the owner (200) versus another user (404), the pending-question workflow, non-owner moderation (403), WebSocket ticket flow (ticket reuse and another user's ticket refused), and a message sent over the socket is stored under the right user. Full backend suite: 95 passing, plus `RlsApplicationIT` (7).
 
-Still open for the data layer: **R8** (agent connects as `ossature_agent`, stops creating tables, optimistic locking, A1.2/A1.3).
+**2026-10-21 - R8, A1.1, A1.2, A1.3 done (agent database access).**
+
+| ID | Status | What changed | Proof |
+|----|--------|--------------|-------|
+| R8 / H18 | Done | The agent connects as `ossature_agent` (`AGENT_DB_USER` / `AGENT_DB_PASSWORD`, replacing the owner credentials it used before) and no longer creates its table: `agent_sessions` comes from the backend's V7 migration, and the agent only probes it at startup (`store.check_connection()`, a clear warning if migrations have not run). With `APP_ENV=prod` the agent refuses to start on a default DB password or a different DB account | 10 role tests: the agent is not a superuser, and `users`, `interview_sessions`, `session_events`, `questions`, `CREATE TABLE`, `ALTER`, `DROP`, `TRUNCATE`, `CREATE ROLE` are all refused; 6 new production-start tests; live run as `ossature_agent` |
+| A1.1 | Decided | **Postgres is authoritative, not sticky routing.** Sticky routing would keep working state in one process and lose it on that instance's restart or rebalance; row versions need no routing layer and also make restart recovery the same code path. Recorded in `docs/architecture.md` | n/a |
+| A1.2 | Done | `agent_sessions.version` (V7). `store.write_if(session, state, expected_version)` updates only if the stored version is still the one the change was based on; the loser gets `CONFLICT`, reloads and redoes its change on the fresh state (`turns._merge`, up to 8 attempts, then a clear `StateConflictError`). A session being created twice is a conflict, and a write to a row deleted by the end-of-session purge does not silently recreate it | `test_store_locking.py`; mutation check: dropping the version condition fails 3 tests, including 12 writers racing with no in-process lock and none of their updates lost |
+| A1.3 | Done | `_SESSIONS` is now a cache: every `get_state` compares the cached version with the stored one (one indexed read) and reloads if another instance wrote. If Postgres is unreachable it still falls back to in-memory state, as before | Test: instance A, with a stale cache, sees instance B's turn, and an A write without re-reading does not erase B's |
+
+Agent suite: 141 passing (15 live-model probes still skipped). Not yet done for multi-instance: A1.4 (two real agent processes interleaving `/transcript` calls), A1.5-A1.8, A2. The in-process locking test emulates instances inside one process, so A1.4/A1.8 should still be run against two real processes.
+
 
 **2026-10-12 - A4.1 done.** Moonshine spike: conditional go with `moonshine-tiny` q8; see
 `docs/architecture.md` ("Local STT spike"). New follow-ups A4.11 (domain-term correction) and
@@ -139,9 +149,9 @@ instances race. The Postgres write-through only fixes restarts.
 
 | ID | Task | Size | Done when |
 |----|------|------|-----------|
-| A1.1 | **Decide**: sticky routing by `session_id` (simplest, keeps in-memory authority) vs. making Postgres authoritative with row locking. Record the choice in `docs/architecture.md`. | S | Decision written down |
-| A1.2 | If DB-authoritative: add a `version` column to the agent's session table and do load -> modify -> save with optimistic locking (or `SELECT ... FOR UPDATE`) in `agent/app/store.py` | M | Concurrent writers can't silently overwrite each other |
-| A1.3 | Demote `_SESSIONS` to a cache that is validated against the DB version on each request | M | A turn handled by instance B sees instance A's latest state |
+| A1.1 | **Decided 2026-10-21: Postgres authoritative (see Progress).** Decide: sticky routing by `session_id` (simplest, keeps in-memory authority) vs. making Postgres authoritative with row locking. Record the choice in `docs/architecture.md`. | S | Decision written down |
+| A1.2 | **Done.** If DB-authoritative: add a `version` column to the agent's session table and do load -> modify -> save with optimistic locking (or `SELECT ... FOR UPDATE`) in `agent/app/store.py` | M | Concurrent writers can't silently overwrite each other |
+| A1.3 | **Done.** Demote `_SESSIONS` to a cache that is validated against the DB version on each request | M | A turn handled by instance B sees instance A's latest state |
 | A1.4 | Concurrency test: two agent instances, interleaved `/transcript` calls on one session | M | Test passes reliably; state is consistent |
 | A1.5 | Move `RateLimiter` (backend, in-memory) to shared storage (Postgres or Redis) | M | Limits hold across 2 backend instances |
 | A1.6 | Make `SummaryScheduler` single-runner across backend instances (e.g. ShedLock) | S | Only one instance fires each sweep |

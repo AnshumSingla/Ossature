@@ -26,15 +26,15 @@ class Settings(BaseSettings):
     langchain_tracing_v2: bool = False
     langchain_project: str = "ossature-interviewer"
 
-    # Same physical Postgres instance the backend uses (docker-compose `postgres` service),
-    # not part of the backend's Flyway-managed schema - the agent owns and creates its own
-    # table here for session-state durability (see app/store.py). Naming mirrors the
-    # backend's .env.example so one .env can be shared/copied between the two services.
+    # Same physical Postgres instance the backend uses (docker-compose `postgres` service). The agent
+    # connects as the restricted `ossature_agent` role - created, with its one table, by the backend's
+    # migration V7 - which can read/write `agent_sessions` and nothing else (see app/store.py).
+    # It must NOT be given the schema owner's credentials (POSTGRES_USER, used only for migrations).
     db_host: str = "127.0.0.1"  # literal IP, not "localhost" - see app/store.py
     db_port: int = 5432
     postgres_db: str = "ossature"
-    postgres_user: str = "ossature"
-    postgres_password: str = "ossature"
+    agent_db_user: str = "ossature_agent"
+    agent_db_password: str = "ossature_agent"  # public dev default - refused when APP_ENV=prod
 
     # Shared secret the backend sends as X-Internal-Token (see app/security.py). Blank = no
     # check, open for local dev - mirrors the backend's AGENT_SHARED_SECRET default.
@@ -52,7 +52,7 @@ class Settings(BaseSettings):
     @property
     def database_url(self) -> str:
         return (
-            f"postgresql+psycopg://{self.postgres_user}:{self.postgres_password}"
+            f"postgresql+psycopg://{self.agent_db_user}:{self.agent_db_password}"
             f"@{self.db_host}:{self.db_port}/{self.postgres_db}"
         )
 

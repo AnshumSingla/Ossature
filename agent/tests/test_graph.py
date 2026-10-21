@@ -16,7 +16,7 @@ client = TestClient(app)
 
 def _postgres_reachable() -> bool:
     store._reset_breaker()  # ignore any cooldown tripped by earlier tests in this run
-    store.ensure_schema()
+    store.check_connection()
     return not store._breaker_open()
 
 
@@ -114,6 +114,7 @@ def test_session_state_survives_a_simulated_restart():
     # Simulate an agent process restart: wipe the in-memory cache only. Recovery must
     # come from Postgres, not from anything still held in the Python process.
     turns._SESSIONS.pop(sid, None)
+    turns._VERSIONS.pop(sid, None)
 
     recovered = turns.get_state(sid)
     assert recovered["prompt"] == "Design a URL shortener"

@@ -17,7 +17,7 @@ def _clear_settings_cache():
 
 
 def _use(monkeypatch, **env):
-    for key in ("INTERNAL_AUTH_TOKEN", "APP_ENV"):
+    for key in ("INTERNAL_AUTH_TOKEN", "APP_ENV", "AGENT_DB_PASSWORD", "AGENT_DB_USER"):
         monkeypatch.delenv(key, raising=False)
     for key, value in env.items():
         monkeypatch.setenv(key, value)
@@ -59,8 +59,30 @@ def test_prod_without_a_secret_refuses_to_start(monkeypatch):
 
 
 def test_prod_with_a_secret_starts(monkeypatch):
-    _use(monkeypatch, APP_ENV="prod", INTERNAL_AUTH_TOKEN="s3cret-value")
+    _use(monkeypatch, APP_ENV="prod", INTERNAL_AUTH_TOKEN="s3cret-value", AGENT_DB_PASSWORD="db-pw-s3cure")
     security.ensure_production_safe()
+
+
+@pytest.mark.parametrize("password", ["ossature_agent", "ossature", "ossature_app", ""])
+def test_prod_refuses_a_default_database_password(monkeypatch, password):
+    _use(monkeypatch, APP_ENV="prod", INTERNAL_AUTH_TOKEN="s3cret-value", AGENT_DB_PASSWORD=password)
+    with pytest.raises(RuntimeError, match="AGENT_DB_PASSWORD"):
+        security.ensure_production_safe()
+
+
+def test_prod_refuses_to_run_as_another_database_account(monkeypatch):
+    """The agent must not be pointed at the schema owner (or any account wider than its own role)."""
+    _use(monkeypatch, APP_ENV="prod", INTERNAL_AUTH_TOKEN="s3cret-value",
+         AGENT_DB_PASSWORD="db-pw-s3cure", AGENT_DB_USER="ossature")
+    with pytest.raises(RuntimeError, match="AGENT_DB_USER"):
+        security.ensure_production_safe()
+
+
+def test_prod_reports_every_problem_at_once(monkeypatch):
+    _use(monkeypatch, APP_ENV="prod")
+    with pytest.raises(RuntimeError) as exc:
+        security.ensure_production_safe()
+    assert "INTERNAL_AUTH_TOKEN" in str(exc.value) and "AGENT_DB_PASSWORD" in str(exc.value)
 
 
 def test_dev_without_a_secret_starts(monkeypatch):

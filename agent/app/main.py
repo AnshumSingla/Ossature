@@ -31,7 +31,7 @@ from app.schemas import (
 async def lifespan(_: FastAPI):
     configure_logging()
     ensure_production_safe()
-    store.ensure_schema()
+    store.check_connection()
     yield
 
 
