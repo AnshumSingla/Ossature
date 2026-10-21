@@ -42,3 +42,4 @@ CLAUDE.md
 
 # Output of scripts/two_instance_check.py
 .topology-*.log
+sbom/

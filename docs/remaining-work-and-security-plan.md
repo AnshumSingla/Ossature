@@ -35,6 +35,14 @@ Found while doing it: Spring Data runs derived query methods outside any transac
 
 Live end-to-end check (dev database migrated to V8, backend running as `ossature_app`): signup, login, session create/list/read, events, summaries, debrief and diagram for the owner (200) versus another user (404), the pending-question workflow, non-owner moderation (403), WebSocket ticket flow (ticket reuse and another user's ticket refused), and a message sent over the socket is stored under the right user. Full backend suite: 95 passing, plus `RlsApplicationTest` (7).
 
+**2026-10-21 - H20 done (dependency and image hygiene).**
+
+| ID | Status | What changed | Proof |
+|----|--------|--------------|-------|
+| H20 | Done (CI written, not yet run on GitHub) | `scripts/audit_dependencies.py` checks all 429 resolved packages (Maven 151, npm 206, PyPI 72) against the public OSV database and fails on any HIGH/CRITICAL/unrated finding that is not in `scripts/audit-allowlist.json` (each exception needs a reason and an expiry date). **It found real problems, now fixed:** Tomcat (3 Critical) and Jackson 2+3 (High) overridden in `pom.xml` to the fixed releases (Spring Boot 4.1.1 is the newest and still manages the old ones); vite and source-map-js updated; the whole Python AI stack was a year old (starlette, langchain-core Critical, langgraph, langsmith, setuptools, certifi...) - upgraded to current releases, and the unused `langchain` / `langchain-community` packages dropped. One accepted exception: `sharp` (Node-only, stubbed out of the browser bundle, needs a breaking transformers upgrade; expires 2027-01-31). Python pins are exact; docker images pinned (`postgres:16.15-alpine`, pgAdmin `9.18.0` instead of `:latest`). `.github/dependabot.yml` (Maven, npm, pip, docker-compose, Actions), `.github/workflows/ci.yml` (backend + agent tests on real Postgres, frontend lint/test/build, dependency audit, weekly schedule, SBOM artifact), `scripts/generate_sbom.py` (CycloneDX for all three parts) | Audit before: 77 findings, after: OK. Backend 147 tests, agent 159, frontend 35 all pass on the upgraded stacks; SBOM commands run locally for all three parts; workflow files parse as YAML (the workflow itself has not run on GitHub) |
+
+Note for the agent upgrade: `langchain-core` 1.x can return message content as a list of blocks for some providers; the code reads `.content` as text, which holds for OpenAI chat models by default, but verify with the live-model probe (needs `OPENAI_API_KEY`) before release.
+
 **2026-10-21 - H10 done (JWT hygiene: short tokens, server-side logout, nothing in storage).**
 
 | ID | Status | What changed | Proof |
@@ -296,7 +304,7 @@ estimate pending confirmation in Part C.
 | H17 | **Postgres Row-Level Security - decided: build it, on top of app checks and CI tests.** Isolation is application-level only today (`owned()` in `SessionController`, plus the WS handler). Broken into R1-R8 below. | L |
 | H18 | **Least-privilege DB users** - delivered as part of R2: separate roles for Flyway (DDL), backend (DML) and agent (its own table only). | (in R2) |
 | H19 | **404 vs 403 on sessions** reveals whether a session ID exists. Return 404 for both. **Done via RLS (see Progress).** | S |
-| H20 | **Dependency and image hygiene:** pin versions, enable Dependabot or Renovate, scan images, produce an SBOM. | M |
+| H20 | **Done 2026-10-21 (see Progress).** **Dependency and image hygiene:** pin versions, enable Dependabot or Renovate, scan images, produce an SBOM. | M |
 | H21 | **Data retention and deletion:** transcripts and debriefs are personal data; define retention, add account/session deletion. | M |
 
 ### B2. Row-Level Security (H17 / H18) - task series

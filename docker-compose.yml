@@ -1,7 +1,7 @@
 # Local infra only. Application services run on the host during development.
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16.15-alpine   # pinned (H20); bump deliberately, Dependabot watches this file
     container_name: ossature-postgres
     restart: unless-stopped
     environment:
@@ -22,7 +22,7 @@ services:
       retries: 10
 
   pgadmin:
-    image: dpage/pgadmin4:latest
+    image: dpage/pgadmin4:9.18.0   # dev tool only (profile "tools"); pinned instead of :latest
     container_name: ossature-pgadmin
     restart: unless-stopped
     profiles: ["tools"]
