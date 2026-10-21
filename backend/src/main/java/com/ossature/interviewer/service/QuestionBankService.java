@@ -3,6 +3,7 @@ package com.ossature.interviewer.service;
 import com.ossature.interviewer.domain.Question;
 import com.ossature.interviewer.domain.QuestionStatus;
 import com.ossature.interviewer.repo.QuestionRepository;
+import com.ossature.interviewer.repo.UserRepository;
 import java.util.List;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -16,9 +17,11 @@ public class QuestionBankService {
     private static final Pattern NON_SLUG_CHARS = Pattern.compile("[^a-z0-9]+");
 
     private final QuestionRepository questions;
+    private final UserRepository users;
 
-    public QuestionBankService(QuestionRepository questions) {
+    public QuestionBankService(QuestionRepository questions, UserRepository users) {
         this.questions = questions;
+        this.users = users;
     }
 
     @Transactional(readOnly = true)
@@ -43,6 +46,9 @@ public class QuestionBankService {
      */
     @Transactional
     public Question submitForReview(String title, String prompt, UUID submittedBy) {
+        if (!users.existsById(submittedBy)) {
+            throw new AccountGoneException();
+        }
         return questions.save(new Question(uniqueSlug(title), title, prompt, submittedBy));
     }
 

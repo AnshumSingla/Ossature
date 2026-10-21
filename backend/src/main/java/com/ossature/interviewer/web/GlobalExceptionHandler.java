@@ -22,6 +22,15 @@ public class GlobalExceptionHandler {
         return pd;
     }
 
+    /**
+     * A constraint the database enforces was hit (for example a token that outlived its account). Never a bare
+     * 500: say there is a conflict, and keep the SQL and constraint names out of the response.
+     */
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ProblemDetail onDataIntegrity(org.springframework.dao.DataIntegrityViolationException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, "That request conflicts with existing data.");
+    }
+
     @ExceptionHandler(UnsupportedOperationException.class)
     public ProblemDetail onUnsupported(UnsupportedOperationException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_IMPLEMENTED, ex.getMessage());
@@ -30,6 +39,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(EmailAlreadyExistsException.class)
     public ProblemDetail onEmailExists(EmailAlreadyExistsException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
+    @ExceptionHandler(com.ossature.interviewer.service.AccountGoneException.class)
+    public ProblemDetail onAccountGone(com.ossature.interviewer.service.AccountGoneException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, ex.getMessage());
     }
 
     @ExceptionHandler(InvalidCredentialsException.class)

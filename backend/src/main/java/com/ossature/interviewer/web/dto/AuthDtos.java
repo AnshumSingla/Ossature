@@ -20,7 +20,7 @@ public final class AuthDtos {
             @Pattern(regexp = "(?=.*[A-Za-z])(?=.*\\d).+",
                     message = "Password must contain at least one letter and one digit")
             String password,
-            @NotBlank @Size(max = 80) String displayName) {}
+            @NotBlank @Size(max = 80) @SafeText String displayName) {}
 
     // Caps: an unbounded field is free memory/CPU for an attacker (bcrypt hashes whatever it is given).
     public record LoginRequest(@NotBlank @Email @Size(max = 254) String email,

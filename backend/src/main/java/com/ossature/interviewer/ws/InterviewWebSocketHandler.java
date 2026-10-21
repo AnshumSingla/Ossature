@@ -3,6 +3,7 @@ package com.ossature.interviewer.ws;
 import tools.jackson.databind.ObjectMapper;
 import com.ossature.interviewer.config.AppProperties;
 import com.ossature.interviewer.db.DbContext;
+import com.ossature.interviewer.service.TextSafety;
 import com.ossature.interviewer.security.WsTicketService;
 import com.ossature.interviewer.service.InterviewFlowService;
 import com.ossature.interviewer.service.RateLimiter;
@@ -112,11 +113,36 @@ public class InterviewWebSocketHandler extends TextWebSocketHandler {
             log.warn("Dropping unparseable frame on session {}: {}", sessionId, e.getClass().getSimpleName());
             return;
         }
+        if (message == null) { // the frame was the JSON literal null
+            log.warn("Dropping empty frame on session {}", sessionId);
+            return;
+        }
+        message = sanitized(message);
         if (!withinTranscriptLimits(sessionId, message)) {
             return;
         }
         UUID userId = (UUID) socket.getAttributes().get("userId");
-        DbContext.runAs(userId, false, () -> flow.onInbound(UUID.fromString(sessionId), message));
+        final InterviewMessage accepted = message;
+        try {
+            DbContext.runAs(userId, false, () -> flow.onInbound(UUID.fromString(sessionId), accepted));
+        } catch (RuntimeException e) {
+            // One bad frame (a missing field, a database refusal) must not drop the candidate's whole interview.
+            // Type only: the message of a parse or SQL error can quote what they said.
+            log.warn("Frame {} on session {} failed: {}", accepted.type(), sessionId, e.getClass().getSimpleName());
+        }
+    }
+
+    /** User text from the socket with control characters and bidirectional overrides removed. */
+    private static InterviewMessage sanitized(InterviewMessage m) {
+        return switch (m) {
+            case InterviewMessage.TranscriptFinal f ->
+                    new InterviewMessage.TranscriptFinal(f.type(), f.sessionId(), TextSafety.clean(f.text()), f.ts());
+            case InterviewMessage.TranscriptPartial p ->
+                    new InterviewMessage.TranscriptPartial(p.type(), p.sessionId(), TextSafety.clean(p.text()), p.ts());
+            case InterviewMessage.ChatMessage c ->
+                    new InterviewMessage.ChatMessage(c.type(), c.sessionId(), c.sender(), TextSafety.clean(c.text()), c.kind(), c.ts());
+            default -> m;
+        };
     }
 
     /**

@@ -22,8 +22,14 @@ class SessionServiceQuestionStatusTest {
     private final InterviewSessionRepository sessions = mock(InterviewSessionRepository.class);
     private final QuestionRepository questions = mock(QuestionRepository.class);
     private final AgentClient agent = mock(AgentClient.class);
+    private final com.ossature.interviewer.repo.UserRepository users = mock(com.ossature.interviewer.repo.UserRepository.class);
     private final SessionService service =
-            new SessionService(sessions, questions, agent, mock(EventLogService.class), new ObjectMapper());
+            new SessionService(sessions, users, questions, agent, mock(EventLogService.class), new ObjectMapper());
+
+    @org.junit.jupiter.api.BeforeEach
+    void accountExists() {
+        when(users.existsById(any())).thenReturn(true);
+    }
 
     @Test
     void cannotStartASessionOnAPendingQuestion() {

@@ -36,6 +36,6 @@ public final class ApiDtos {
     /** One-time ticket for the interview WebSocket (see WsTicketService). */
     public record WsTicketView(String ticket, long expiresInSeconds) {}
 
-    public record SubmitQuestionRequest(@NotBlank @Size(max = 140) String title,
-                                        @NotBlank @Size(max = 4000) String prompt) {}
+    public record SubmitQuestionRequest(@NotBlank @Size(max = 140) @SafeText String title,
+                                        @NotBlank @Size(max = 4000) @SafeText String prompt) {}
 }

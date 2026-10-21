@@ -9,6 +9,7 @@ import com.ossature.interviewer.domain.Question;
 import com.ossature.interviewer.domain.QuestionStatus;
 import com.ossature.interviewer.repo.InterviewSessionRepository;
 import com.ossature.interviewer.repo.QuestionRepository;
+import com.ossature.interviewer.repo.UserRepository;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -27,14 +28,16 @@ public class SessionService {
     private static final Logger log = LoggerFactory.getLogger(SessionService.class);
 
     private final InterviewSessionRepository sessions;
+    private final UserRepository users;
     private final QuestionRepository questions;
     private final AgentClient agent;
     private final EventLogService eventLog;
     private final ObjectMapper mapper;
 
-    public SessionService(InterviewSessionRepository sessions, QuestionRepository questions,
+    public SessionService(InterviewSessionRepository sessions, UserRepository users, QuestionRepository questions,
                           AgentClient agent, EventLogService eventLog, ObjectMapper mapper) {
         this.sessions = sessions;
+        this.users = users;
         this.questions = questions;
         this.agent = agent;
         this.eventLog = eventLog;
@@ -43,6 +46,9 @@ public class SessionService {
 
     @Transactional
     public InterviewSession create(UUID userId, UUID questionId) {
+        if (!users.existsById(userId)) {
+            throw new AccountGoneException();
+        }
         Question question = questions.findById(questionId)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown question " + questionId));
         // Only reviewed questions may be run. A pending/rejected community prompt goes

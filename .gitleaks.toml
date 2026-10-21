@@ -1,0 +1,7 @@
+# Secret scanning (C8). One reviewed false positive: a deliberately fake JWT used to prove log masking works.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Synthetic test fixtures"
+paths = ['''backend/src/test/java/com/ossature/interviewer/logging/LoggingConfigIntegrationTest\.java''']

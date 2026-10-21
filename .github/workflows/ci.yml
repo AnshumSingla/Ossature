@@ -70,6 +70,14 @@ jobs:
       # scripts/audit-allowlist.json.
       - run: python scripts/audit_dependencies.py
 
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }   # the whole history, not just the tip
+      - uses: gitleaks/gitleaks-action@v2
+        env: { GITLEAKS_CONFIG: .gitleaks.toml }
+
   sbom:
     runs-on: ubuntu-latest
     steps:

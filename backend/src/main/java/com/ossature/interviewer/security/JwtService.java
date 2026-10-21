@@ -66,7 +66,7 @@ public class JwtService {
                 return Optional.empty(); // e.g. a WebSocket ticket must never authenticate REST calls
             }
             return Optional.of(new Claims(UUID.fromString(payload.getSubject()), payload.get("email", String.class)));
-        } catch (JwtException | IllegalArgumentException e) {
+        } catch (RuntimeException e) { // JwtException, a missing or non-UUID subject, anything malformed: not a valid token
             return Optional.empty();
         }
     }
