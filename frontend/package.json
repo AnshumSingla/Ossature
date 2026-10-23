@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test": "node --test \"src/**/*.test.ts\""
+    "test": "node --test \"src/**/*.test.ts\"",
+    "model-manifest": "node scripts/make-model-manifest.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "3.8.0",

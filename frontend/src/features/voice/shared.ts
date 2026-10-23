@@ -100,6 +100,9 @@ export function preloadVoiceModel(): void {
     getVoiceEngine()
       .then((engine) => engine.load())
       .catch(() => {
+        // Show it as failed rather than leaving the indicator frozen at "Preparing voice… 98%" (this includes a
+        // model file that failed its integrity check).
+        setStatus({ state: 'failed', progress: 0 });
         preloadStarted = false; // let a later call (e.g. pressing Start) try again
       });
   };

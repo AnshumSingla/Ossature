@@ -2,6 +2,7 @@
 // whiteboard. Talks to TransformersEngine through the small message protocol below.
 
 import { env, pipeline } from '@huggingface/transformers';
+import { createVerifiedCache, type CacheLike, type ModelManifest } from './integrity';
 
 export type WorkerRequest =
   | { type: 'load'; modelId: string; revision: string; modelHost: string; expectedBytes: number }
@@ -19,6 +20,20 @@ let asr: Asr | null = null;
 let loading: Promise<void> | null = null;
 let queue: Promise<void> = Promise.resolve();
 
+/** Persistent browser cache where available; a per-session in-memory store when the browser refuses (private mode). */
+async function openStore(): Promise<CacheLike> {
+  try {
+    return await caches.open('ossature-stt-models');
+  } catch {
+    const memory = new Map<string, Response>();
+    return {
+      match: async (key) => memory.get(key)?.clone(),
+      put: async (key, response) => void memory.set(key, response.clone()),
+      delete: async (key) => memory.delete(key),
+    };
+  }
+}
+
 const send = (msg: WorkerResponse) => (self as unknown as Worker).postMessage(msg);
 
 async function load(modelId: string, revision: string, modelHost: string, expectedBytes: number): Promise<void> {
@@ -34,6 +49,22 @@ async function load(modelId: string, revision: string, modelHost: string, expect
     env.remoteHost = modelHost.endsWith('/') ? modelHost : `${modelHost}/`;
     env.remotePathTemplate = '{model}/';
   }
+
+  // Integrity (A4.4): every model file must match the SHA-256 in the manifest that ships with the app, whether it
+  // comes from Hugging Face or from our own host - checked on download, before it is cached or used, and again when
+  // read back from the cache. A tampered, substituted or unexpected file makes the load fail.
+  const manifestRes = await fetch('/stt/model-manifest.json');
+  if (!manifestRes.ok) throw new Error('model integrity manifest is missing');
+  const manifest = (await manifestRes.json()) as ModelManifest;
+  if (manifest.modelId !== modelId || manifest.revision !== revision) {
+    throw new Error(
+      `model-manifest.json is for ${manifest.modelId}@${manifest.revision}, not ${modelId}@${revision} - run scripts/make-model-manifest.mjs`,
+    );
+  }
+  env.useBrowserCache = false;
+  env.useCustomCache = true;
+  const verified = createVerifiedCache(manifest, await openStore());
+  env.customCache = verified;
 
   // Per-file byte counts -> one overall 0..1 figure. Files are discovered one at a time (the
   // small config files finish before the big model files even start), so progress is measured
@@ -64,6 +95,11 @@ async function load(modelId: string, revision: string, modelHost: string, expect
       }
     },
   });
+  // transformers.js swallows errors from the cache (it just warns and carries on with the downloaded bytes), so a
+  // file that failed verification has to be refused here, explicitly, before the model is ever used.
+  if (verified.violations.length > 0) {
+    throw new Error(`Speech model failed its integrity check: ${verified.violations.join('; ')}`);
+  }
   asr = pipe as unknown as Asr;
 }
 
