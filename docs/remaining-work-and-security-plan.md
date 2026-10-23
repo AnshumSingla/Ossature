@@ -469,7 +469,7 @@ Ship only when **all** are true:
 - [x] Every cell of the C2 role matrix and every C3 isolation test passes (CI workflow written, not yet run on GitHub).
 - [ ] No High/Critical findings open from C4, C6, C8, C10, C11.
 - [ ] Production startup refuses default secrets (C8), and TLS/headers pass (C7).
-- [ ] Backup restore tested (C9). Incident contact and a rollback path documented.
+- [ ] Backup restore tested (C9). Incident contact and a rollback path documented. **Rollback path, secret rotation and incident playbooks: written (`docs/operations-runbook.md`). Still to fill in by you: the contacts and approvers (section 0), the backup schedule, and a rehearsed restore.**
 - [~] A short **security test report** is committed (`docs/security-test-report.md`, draft: lists what is not yet run) (what was run, versions, results, accepted risks).
 
 ## Suggested order of work
