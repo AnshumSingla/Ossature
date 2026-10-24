@@ -1,4 +1,4 @@
-# Runs on every push and pull request. Not yet exercised on GitHub (written and checked locally only).
+# Runs on every push and pull request.
 name: ci
 on:
   push: { branches: [main] }
@@ -89,7 +89,9 @@ jobs:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }   # the whole history, not just the tip
       - uses: gitleaks/gitleaks-action@v2
-        env: { GITLEAKS_CONFIG: .gitleaks.toml }
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # required by the action to scan pull requests
+          GITLEAKS_CONFIG: .gitleaks.toml
 
   sbom:
     runs-on: ubuntu-latest
