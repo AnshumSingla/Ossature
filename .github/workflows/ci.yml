@@ -85,6 +85,7 @@ jobs:
 
   secret-scan:
     runs-on: ubuntu-latest
+    permissions: { contents: read, pull-requests: write }   # the action comments findings on the PR
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }   # the whole history, not just the tip
