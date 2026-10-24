@@ -4,6 +4,7 @@ import com.ossature.interviewer.domain.InterviewSession;
 import com.ossature.interviewer.domain.Question;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -30,5 +31,11 @@ public final class ApiDtos {
         }
     }
 
-    public record SubmitQuestionRequest(@NotBlank String title, @NotBlank String prompt) {}
+    // The prompt is fed to an LLM for every session that uses the question, so its size is a
+    // cost and a prompt-injection-surface limit, not just a storage one.
+    /** One-time ticket for the interview WebSocket (see WsTicketService). */
+    public record WsTicketView(String ticket, long expiresInSeconds) {}
+
+    public record SubmitQuestionRequest(@NotBlank @Size(max = 140) @SafeText String title,
+                                        @NotBlank @Size(max = 4000) @SafeText String prompt) {}
 }

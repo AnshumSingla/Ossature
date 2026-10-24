@@ -4,8 +4,10 @@ spring:
 
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${POSTGRES_DB:ossature}
-    username: ${POSTGRES_USER:ossature}
-    password: ${POSTGRES_PASSWORD:ossature}
+    # The application connects as a restricted role (no superuser, owns nothing, row-level security
+    # applies to it). The schema owner below is used ONLY to run migrations. Role created by V7.
+    username: ${APP_DB_USER:ossature_app}
+    password: ${APP_DB_PASSWORD:ossature_app}
 
   jpa:
     hibernate:
@@ -17,6 +19,15 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+    # Migrations run as the schema owner (also the account docker-compose creates), separately from
+    # the restricted account the application uses.
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${POSTGRES_DB:ossature}
+    user: ${POSTGRES_USER:ossature}
+    password: ${POSTGRES_PASSWORD:ossature}
+    # Passwords for the roles V7 creates. Local defaults only - production refuses to start with them.
+    placeholders:
+      appDbPassword: ${APP_DB_PASSWORD:ossature_app}
+      agentDbPassword: ${AGENT_DB_PASSWORD:ossature_agent}
 
 server:
   port: ${BACKEND_PORT:8080}
@@ -42,22 +53,48 @@ ossature:
     # HS256 needs >= 256 bits; this dev default is long enough but is not a secret - set
     # JWT_SECRET for anything beyond a local box.
     jwt-secret: ${JWT_SECRET:dev-only-insecure-jwt-secret-change-me-before-deploying-anywhere}
-    jwt-expiry: 24h
+    # Access token lifetime. Short on purpose (H10): the browser keeps it in memory only and renews it with
+    # the refresh cookie (see ossature.refresh), so a stolen access token is useful for minutes, not a day.
+    jwt-expiry: 15m
     # Comma-separated emails granted the owner role (question-review workflow, PRD 9).
     # Blank by default - nobody is owner until this is set.
     owner-emails: ${OWNER_EMAILS:}
+  refresh:
+    # Login sessions (H10): rotating refresh token in an httpOnly, SameSite=Strict cookie.
+    remember-ttl: 30d
+    session-ttl: 12h
+    reuse-grace: 10s
+    # Browsers refuse Secure cookies on plain http (Safari even on localhost), so local development
+    # sets this false; production refuses to start unless it is true (ProductionSafetyCheck).
+    cookie-secure: ${COOKIE_SECURE:false}
   rate-limit:
-    # Brute-force guard on /api/auth/login - two layers, since a per-email-only limit still
-    # lets one IP spray many emails, and a per-IP-only limit lets a botnet spread the guesses.
-    login-max-per-email: 5
-    login-window: 5m
+    # Brute-force guard on /api/auth/login, three layers (see AppProperties.RateLimit):
+    #  - per (account, source IP): stops one address hammering one account
+    #  - per account across all addresses: high, bounds distributed guessing without letting a
+    #    stranger lock the real user out with a handful of wrong passwords
+    #  - per IP: stops one address spraying many accounts
+    login-max-per-email-and-ip: 5
+    login-email-ip-window: 5m
+    login-max-per-email-global: 100
+    login-email-global-window: 1h
     login-max-per-ip: 20
     login-ip-window: 5m
+    # Signup: per source IP only (cheap to script, and it must not eat anyone's login budget).
+    signup-max-per-ip: 10
+    signup-window: 1h
     # Session creation triggers a real paid LLM call via Council (PRD §8 cost notes) -
     # this is the actual cost-exposure gap, not just brute force.
     session-create-max: 10
     session-create-window: 1h
 
+  limits:
+    # Largest accepted REST body. Real payloads (login, a question, a session) are far smaller.
+    max-request-bytes: 65536
+    # Largest single WebSocket frame. A full diagram snapshot is the biggest legitimate frame.
+    ws-max-message-bytes: 262144
+    # transcript.final frames each trigger a paid LLM call.
+    transcript-max-chars: 4000
+    transcript-max-per-minute: 30
 management:
   endpoints:
     web:

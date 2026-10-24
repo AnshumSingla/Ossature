@@ -11,7 +11,9 @@ import json
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.graph.state import InterviewState
+from app.guard import parse_json, sanitize_flaws
 from app.llm import review_model
+from app.prompting import untrusted, with_rules
 
 SYSTEM = """Compare the candidate's system design diagram against the reference design.
 Identify concrete gaps: missing components, unaddressed failure modes, scale mismatches,
@@ -19,21 +21,35 @@ weak trade-offs. For each, return an object with:
   "summary": the gap, one line
   "question_prompt": how the interviewer should raise it, phrased as a spoken question
   "priority": 1 (most important) .. 5
-Return a JSON array, most important first, at most 6 items."""
+Return a JSON array, most important first, at most 6 items. Output only the JSON array."""
+
+
+NO_REFERENCE_FLAW = {
+    "summary": "No reference solution was available to compare against",
+    "question_prompt": "I don't have a reference to compare against yet, so tell me: what is the single "
+    "biggest point of failure in your design, and how does it cope?",
+    "priority": 1,
+}
 
 
 def review_node(state: InterviewState) -> InterviewState:
     final_diagram = state.get("final_diagram", {})
     reference = state.get("reference_solution", {})
+    if not reference:
+        # No reference to compare against (the Council has not finished, or failed): say so plainly and
+        # keep the interview moving with a generic follow-up, instead of asking a model to "compare" the
+        # diagram with nothing and invent gaps.
+        return {"flaws": [dict(NO_REFERENCE_FLAW)]}
 
+    # Node labels in the diagram are typed by the candidate: untrusted.
     model = review_model()
     raw = model.invoke(
         [
-            SystemMessage(content=SYSTEM),
+            SystemMessage(content=with_rules(SYSTEM)),
             HumanMessage(
                 content=(
-                    f"Candidate diagram:\n{json.dumps(final_diagram)[:6000]}\n\n"
-                    f"Reference:\n{json.dumps(reference)[:6000]}"
+                    f"{untrusted('candidate_diagram', json.dumps(final_diagram), 6000)}\n\n"
+                    f"{untrusted('reference_solution', json.dumps(reference), 6000)}"
                 )
             ),
         ]
@@ -43,13 +59,12 @@ def review_node(state: InterviewState) -> InterviewState:
 
 
 def _parse_flaws(raw: str) -> list[dict]:
-    try:
-        data = json.loads(raw)
-        if isinstance(data, list):
-            return data[:6]
-    except (json.JSONDecodeError, TypeError):
-        pass
-    # Stub mode / unparseable: one generic follow-up so the flow still progresses.
+    # Whatever the model returned is forced into a known, bounded shape before anything downstream
+    # (the backend, the UI, text-to-speech) sees it.
+    flaws = sanitize_flaws(parse_json(raw))
+    if flaws:
+        return flaws
+    # Stub mode / unparseable / nothing usable: one generic follow-up so the flow still progresses.
     return [
         {
             "summary": "Reference comparison unavailable",

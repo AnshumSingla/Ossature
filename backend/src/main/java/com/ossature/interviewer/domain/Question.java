@@ -109,6 +109,10 @@ public class Question {
         return referenceSolution != null && !referenceSolution.isBlank();
     }
 
+    public java.time.Instant getCreatedAt() {
+        return createdAt;
+    }
+
     public UUID getSubmittedBy() {
         return submittedBy;
     }

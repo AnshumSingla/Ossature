@@ -7,6 +7,11 @@ function badgeClass(source: string): string {
   return 'q-badge';
 }
 
+// "SEED" is a backend term; to users these are simply the built-in questions.
+function sourceLabel(source: string): string {
+  return source === 'SEED' ? 'built-in' : source.toLowerCase();
+}
+
 export function QuestionPicker({ onPick }: { onPick: (q: QuestionView) => void }) {
   const [questions, setQuestions] = useState<QuestionView[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -32,7 +37,7 @@ export function QuestionPicker({ onPick }: { onPick: (q: QuestionView) => void }
           <p>{q.prompt}</p>
           <div className="q-card-footer">
             <span className={badgeClass(q.source)}>
-              {q.source.toLowerCase()}
+              {sourceLabel(q.source)}
               {q.hasVettedReference && <span className="vetted"> · vetted</span>}
             </span>
             <button type="button" onClick={() => onPick(q)}>

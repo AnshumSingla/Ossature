@@ -1,5 +1,6 @@
 package com.ossature.interviewer.ws;
 
+import com.ossature.interviewer.logging.LogSafe;
 import tools.jackson.databind.ObjectMapper;
 import com.ossature.interviewer.ws.protocol.InterviewMessage;
 import java.io.IOException;
@@ -8,6 +9,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 
@@ -27,12 +29,28 @@ public class SessionSocketRegistry {
         this.mapper = mapper;
     }
 
+    /**
+     * Makes {@code socket} the session's connection. A reconnect replaces the old one, which is closed:
+     * leaving it open would leave two live sockets for one session (PRD 6.2: one connection per session).
+     */
     public void register(String sessionId, WebSocketSession socket) {
-        connections.put(sessionId, socket);
+        WebSocketSession previous = connections.put(sessionId, socket);
+        if (previous != null && previous != socket && previous.isOpen()) {
+            try {
+                previous.close(CloseStatus.POLICY_VIOLATION.withReason("replaced by a newer connection"));
+            } catch (IOException e) {
+                log.debug("Closing the replaced socket for session {} failed: {}", sessionId, e.getClass().getSimpleName());
+            }
+        }
     }
 
-    public void unregister(String sessionId) {
-        connections.remove(sessionId);
+    /**
+     * Forgets {@code socket}, but only if it is still the session's current connection. The old socket's
+     * close notification arrives after a reconnect has already registered the new one, and must not
+     * unregister the new one.
+     */
+    public void unregister(String sessionId, WebSocketSession socket) {
+        connections.remove(sessionId, socket);
     }
 
     /** Push a message to the candidate for {@code sessionId}. No-op if not connected. */
@@ -45,7 +63,7 @@ public class SessionSocketRegistry {
         try {
             socket.sendMessage(new TextMessage(mapper.writeValueAsString(message)));
         } catch (IOException e) {
-            log.warn("Failed to push {} to session {}", message.type(), sessionId, e);
+            LogSafe.warn(log, "Failed to push {} to session {}", e, message.type(), sessionId);
         }
     }
 }

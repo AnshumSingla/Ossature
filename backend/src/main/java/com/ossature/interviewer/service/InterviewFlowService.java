@@ -1,10 +1,12 @@
 package com.ossature.interviewer.service;
 
+import com.ossature.interviewer.logging.LogSafe;
 import tools.jackson.databind.ObjectMapper;
 import com.ossature.interviewer.agent.AgentClient;
 import com.ossature.interviewer.agent.AgentDtos;
 import com.ossature.interviewer.domain.InterimSummary;
 import com.ossature.interviewer.domain.InterviewSession;
+import com.ossature.interviewer.domain.SessionState;
 import com.ossature.interviewer.repo.InterimSummaryRepository;
 import com.ossature.interviewer.repo.InterviewSessionRepository;
 import com.ossature.interviewer.ws.SessionSocketRegistry;
@@ -46,17 +48,41 @@ public class InterviewFlowService {
         this.mapper = mapper;
     }
 
+    /**
+     * Handles one frame from the candidate - but only if the session's state allows it. Every transcript turn,
+     * review and debrief is a paid model call, so an ended session accepts nothing, the diagram can be locked
+     * (and reviewed) once, and a locked diagram no longer changes.
+     */
     public void onInbound(UUID sessionId, InterviewMessage message) {
+        InterviewSession session = sessions.findById(sessionId).orElse(null);
+        if (session == null || session.getState() == SessionState.ENDED) {
+            log.debug("Ignoring {} for session {}: not active", message.type(), sessionId);
+            return;
+        }
         switch (message) {
             case InterviewMessage.TranscriptPartial p ->
                     eventLog.append(sessionId, p.type(), Map.of("text", p.text(), "ts", p.ts()));
             case InterviewMessage.TranscriptFinal f -> handleTranscriptFinal(sessionId, f);
-            case InterviewMessage.DiagramSnapshot s ->
+            case InterviewMessage.DiagramSnapshot s -> {
+                if (!session.isDiagramLocked()) {
                     eventLog.append(sessionId, s.type(), Map.of("nodes", s.nodes(), "edges", s.edges()));
-            case InterviewMessage.ChatMessage c ->
-                    eventLog.append(sessionId, c.type(),
-                            Map.of("sender", c.sender(), "text", c.text(), "kind", String.valueOf(c.kind())));
-            case InterviewMessage.DiagramLocked l -> handleSubmit(sessionId, l);
+                }
+            }
+            case InterviewMessage.ChatMessage c -> {
+                // The interviewer's turns are written by the server; a client may only speak as the candidate.
+                if ("candidate".equals(c.sender())) {
+                    eventLog.append(sessionId, c.type(), Map.of("sender", "candidate", "text", c.text(), "kind", ""));
+                } else {
+                    log.warn("Dropping a client chat message claiming to be '{}' on session {}", c.sender(), sessionId);
+                }
+            }
+            case InterviewMessage.DiagramLocked l -> {
+                if (session.getState() == SessionState.ACTIVE && !session.isDiagramLocked()) {
+                    handleSubmit(sessionId, l);
+                } else {
+                    log.debug("Ignoring a repeated diagram.locked for session {}", sessionId);
+                }
+            }
             case InterviewMessage.SessionEnd e -> handleSessionEnd(sessionId, e);
             case InterviewMessage.AiThinking ignored -> { /* server-originated only */ }
             case InterviewMessage.DebriefReady ignored -> { /* server-originated only */ }
@@ -72,7 +98,7 @@ public class InterviewFlowService {
                 pushAiTurn(sessionId, turn.text(), turn.kind());
             }
         } catch (RuntimeException e) {
-            log.warn("Agent transcript call failed for session {}", sessionId, e);
+            LogSafe.warn(log, "Agent transcript call failed for session {}", e, sessionId);
         }
     }
 
@@ -96,7 +122,7 @@ public class InterviewFlowService {
                 }
             }
         } catch (RuntimeException e) {
-            log.warn("Review node call failed for session {}", sessionId, e);
+            LogSafe.warn(log, "Review node call failed for session {}", e, sessionId);
         }
     }
 
@@ -110,27 +136,28 @@ public class InterviewFlowService {
         List<String> summaryContents = interimSummaries.findBySessionIdOrderByOrdinalAsc(sessionId).stream()
                 .map(InterimSummary::getContent)
                 .toList();
+        AgentDtos.DebriefResponse debrief = null;
         try {
-            var debrief = agent.requestDebrief(sessionId.toString(),
+            debrief = agent.requestDebrief(sessionId.toString(),
                     new AgentDtos.DebriefRequest(sessionId.toString(), summaryContents, readMap(session.getReferenceSolution())));
-            if (debrief != null) {
-                session.end(writeJson(debrief));
-                sessions.save(session);
-                registry.push(sessionId.toString(), new InterviewMessage.DebriefReady(
-                        "debrief.ready", sessionId.toString(),
-                        debrief.strengths(), debrief.gaps(), debrief.unresolved(),
-                        debrief.referenceComparison(), now()));
-                // Only once we hold the debrief durably: the agent's working copy of this
-                // session's state is no longer needed (PRD point 3 durability follow-up).
-                try {
-                    agent.endSession(sessionId.toString());
-                } catch (RuntimeException e) {
-                    log.warn("Agent session cleanup failed for {} (harmless, will just linger)",
-                            sessionId, e);
-                }
-            }
         } catch (RuntimeException e) {
-            log.warn("Debrief node call failed for session {}", sessionId, e);
+            LogSafe.warn(log, "Debrief node call failed for session {}", e, sessionId);
+        }
+        // The candidate asked to end, so the interview ends - even if the model could not produce a debrief
+        // (the session would otherwise be stuck open, and keep accepting paid frames, until it is purged).
+        session.end(debrief == null ? null : writeJson(debrief));
+        sessions.save(session);
+        if (debrief != null) {
+            registry.push(sessionId.toString(), new InterviewMessage.DebriefReady(
+                    "debrief.ready", sessionId.toString(),
+                    debrief.strengths(), debrief.gaps(), debrief.unresolved(),
+                    debrief.referenceComparison(), now()));
+        }
+        // The backend now holds the record (with or without a debrief): the agent's working copy is no longer needed.
+        try {
+            agent.endSession(sessionId.toString());
+        } catch (RuntimeException e) {
+            LogSafe.warn(log, "Agent session cleanup failed for {} (harmless, will just linger)", e, sessionId);
         }
     }
 
@@ -157,7 +184,7 @@ public class InterviewFlowService {
                         "payload", mapper.readTree(event.getPayload()),
                         "ts", event.getTs().toEpochMilli()))));
             } catch (Exception e) {
-                log.warn("Replay failed for session {} seq {}", sessionId, event.getSeq(), e);
+                LogSafe.warn(log, "Replay failed for session {} seq {}", e, sessionId, event.getSeq());
             }
         });
     }

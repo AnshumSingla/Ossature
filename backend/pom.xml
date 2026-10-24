@@ -28,6 +28,11 @@
 	</scm>
 	<properties>
 		<java.version>21</java.version>
+		<!-- Security overrides of versions Spring Boot 4.1.1 manages (found by scripts/audit_dependencies.py, H20).
+		     Remove each once a Spring Boot release ships a fixed version. -->
+		<tomcat.version>11.0.25</tomcat.version>
+		<jackson-bom.version>3.1.7</jackson-bom.version>
+		<jackson-2-bom.version>2.21.7</jackson-2-bom.version>
 	</properties>
 	<dependencies>
 		<dependency>

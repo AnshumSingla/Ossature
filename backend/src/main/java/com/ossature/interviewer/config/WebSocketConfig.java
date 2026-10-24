@@ -2,6 +2,9 @@ package com.ossature.interviewer.config;
 
 import com.ossature.interviewer.ws.InterviewWebSocketHandler;
 import java.util.List;
+import org.springframework.boot.tomcat.servlet.TomcatServletWebServerFactory;
+import org.springframework.boot.web.server.WebServerFactoryCustomizer;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.socket.config.annotation.EnableWebSocket;
 import org.springframework.web.socket.config.annotation.WebSocketConfigurer;
@@ -21,6 +24,20 @@ public class WebSocketConfig implements WebSocketConfigurer {
     public WebSocketConfig(InterviewWebSocketHandler handler, AppProperties props) {
         this.handler = handler;
         this.props = props;
+    }
+
+    /**
+     * Caps a single inbound frame; Tomcat closes the connection (1009) if a client exceeds it.
+     * Set through Tomcat's own context parameters rather than a ServletServerContainerFactoryBean,
+     * because that bean needs a live WebSocket container and breaks any mock-servlet test context.
+     */
+    @Bean
+    public WebServerFactoryCustomizer<TomcatServletWebServerFactory> webSocketFrameLimit() {
+        int max = props.limits() == null ? 262_144 : props.limits().wsMaxMessageBytes();
+        return factory -> factory.addContextCustomizers(context -> {
+            context.addParameter("org.apache.tomcat.websocket.textBufferSize", String.valueOf(max));
+            context.addParameter("org.apache.tomcat.websocket.binaryBufferSize", String.valueOf(max));
+        });
     }
 
     @Override

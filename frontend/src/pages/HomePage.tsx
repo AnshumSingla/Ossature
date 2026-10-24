@@ -2,6 +2,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { api, type QuestionView } from '../api/rest';
 import { useAuth } from '../api/auth';
 import { QuestionPicker } from '../features/questionBank/QuestionPicker';
+import { VoiceModelStatus } from '../features/voice/VoiceModelStatus';
 
 export function HomePage() {
   const navigate = useNavigate();
@@ -24,6 +25,7 @@ export function HomePage() {
         <nav className="app-nav">
           <Link to="/history">History</Link>
           <Link to="/submit-question">Submit a question</Link>
+          <Link to="/account">Your data</Link>
           {user?.isOwner && <Link to="/review">Review submissions</Link>}
         </nav>
         <div className="user">
@@ -35,6 +37,7 @@ export function HomePage() {
         Pick a prompt, then talk through your design out loud while you draw it — the
         interviewer answers back by voice, same as the real thing.
       </p>
+      <VoiceModelStatus />
       <h2>Question bank</h2>
       <QuestionPicker onPick={start} />
     </main>

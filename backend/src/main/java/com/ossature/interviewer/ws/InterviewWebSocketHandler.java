@@ -1,8 +1,13 @@
 package com.ossature.interviewer.ws;
 
 import tools.jackson.databind.ObjectMapper;
-import com.ossature.interviewer.security.JwtService;
+import com.ossature.interviewer.config.AppProperties;
+import com.ossature.interviewer.db.DbContext;
+import com.ossature.interviewer.service.CostBudget;
+import com.ossature.interviewer.service.TextSafety;
+import com.ossature.interviewer.security.WsTicketService;
 import com.ossature.interviewer.service.InterviewFlowService;
+import com.ossature.interviewer.service.RateLimiter;
 import com.ossature.interviewer.service.SessionService;
 import java.net.URI;
 import java.util.Map;
@@ -18,13 +23,14 @@ import org.springframework.web.util.UriComponentsBuilder;
 import com.ossature.interviewer.ws.protocol.InterviewMessage;
 
 /**
- * Single interview endpoint ({@code /ws/interview?sessionId=...&lastSeq=...&token=...}).
+ * Single interview endpoint ({@code /ws/interview?sessionId=...&lastSeq=...&ticket=...}).
  * Persists every inbound frame to the replay log and hands domain-significant frames
  * (transcript.final, diagram.locked, session.end) to {@link InterviewFlowService}.
  *
  * Auth happens here, not via the Spring Security filter chain: browsers can't set a custom
- * header on a WebSocket handshake, so the JWT travels as a {@code token} query param instead
- * and is checked by hand against both validity and session ownership (PRD 6.2 follow-up).
+ * header on a WebSocket handshake, so a short-lived single-use {@code ticket} (see
+ * {@link WsTicketService}) travels as a query param instead and is checked by hand against both
+ * validity and session ownership (PRD 6.2 follow-up, H9).
  */
 @Component
 public class InterviewWebSocketHandler extends TextWebSocketHandler {
@@ -34,15 +40,22 @@ public class InterviewWebSocketHandler extends TextWebSocketHandler {
     private final ObjectMapper mapper;
     private final SessionSocketRegistry registry;
     private final InterviewFlowService flow;
-    private final JwtService jwt;
+    private final WsTicketService tickets;
     private final SessionService sessions;
+    private final RateLimiter rateLimiter;
+    private final CostBudget budget;
+    private final AppProperties.Limits limits;
 
     public InterviewWebSocketHandler(ObjectMapper mapper, SessionSocketRegistry registry,
-                                     InterviewFlowService flow, JwtService jwt, SessionService sessions) {
+                                     InterviewFlowService flow, WsTicketService tickets, SessionService sessions,
+                                     RateLimiter rateLimiter, CostBudget budget, AppProperties props) {
+        this.rateLimiter = rateLimiter;
+        this.budget = budget;
+        this.limits = props.limits();
         this.mapper = mapper;
         this.registry = registry;
         this.flow = flow;
-        this.jwt = jwt;
+        this.tickets = tickets;
         this.sessions = sessions;
     }
 
@@ -55,9 +68,11 @@ public class InterviewWebSocketHandler extends TextWebSocketHandler {
             return;
         }
 
-        UUID callerId = jwt.verify(params.get("token")).orElse(null);
+        // The login token is never accepted here (it would end up in URLs and logs); only a
+        // one-time ticket for exactly this session, obtained via POST /api/sessions/{id}/ws-ticket.
+        UUID callerId = tickets.redeem(params.get("ticket"), sessionId).orElse(null);
         if (callerId == null) {
-            socket.close(CloseStatus.POLICY_VIOLATION.withReason("missing or invalid token"));
+            socket.close(CloseStatus.POLICY_VIOLATION.withReason("missing, invalid or already used ticket"));
             return;
         }
         UUID sessionUuid;
@@ -69,7 +84,9 @@ public class InterviewWebSocketHandler extends TextWebSocketHandler {
         }
         UUID ownerId;
         try {
-            ownerId = sessions.get(sessionUuid).getUserId();
+            // Acting as the ticket holder: row-level security hides other users' sessions, so someone
+            // else's session is simply "unknown" here.
+            ownerId = DbContext.callAs(callerId, false, () -> sessions.get(sessionUuid).getUserId());
         } catch (IllegalArgumentException e) {
             socket.close(CloseStatus.BAD_DATA.withReason("unknown session"));
             return;
@@ -80,10 +97,11 @@ public class InterviewWebSocketHandler extends TextWebSocketHandler {
         }
 
         socket.getAttributes().put("sessionId", sessionId);
+        socket.getAttributes().put("userId", callerId);
         registry.register(sessionId, socket);
 
         long lastSeq = parseLong(params.get("lastSeq"), 0L);
-        flow.replaySince(sessionUuid, lastSeq, socket);
+        DbContext.runAs(callerId, false, () -> flow.replaySince(sessionUuid, lastSeq, socket));
         log.info("WS connected for session {} (replay after seq {})", sessionId, lastSeq);
     }
 
@@ -94,17 +112,97 @@ public class InterviewWebSocketHandler extends TextWebSocketHandler {
         try {
             message = mapper.readValue(frame.getPayload(), InterviewMessage.class);
         } catch (Exception e) {
-            log.warn("Dropping unparseable frame on session {}: {}", sessionId, e.getMessage());
+            // Only the error type: Jackson's message quotes the text it could not parse (the transcript).
+            log.warn("Dropping unparseable frame on session {}: {}", sessionId, e.getClass().getSimpleName());
             return;
         }
-        flow.onInbound(UUID.fromString(sessionId), message);
+        if (message == null) { // the frame was the JSON literal null
+            log.warn("Dropping empty frame on session {}", sessionId);
+            return;
+        }
+        message = sanitized(message);
+        if (!withinTranscriptLimits(sessionId, message)) {
+            return;
+        }
+        UUID userId = (UUID) socket.getAttributes().get("userId");
+        final InterviewMessage accepted = message;
+        if (!withinBudget(sessionId, userId, accepted)) {
+            return;
+        }
+        try {
+            DbContext.runAs(userId, false, () -> flow.onInbound(UUID.fromString(sessionId), accepted));
+        } catch (RuntimeException e) {
+            // One bad frame (a missing field, a database refusal) must not drop the candidate's whole interview.
+            // Type only: the message of a parse or SQL error can quote what they said.
+            log.warn("Frame {} on session {} failed: {}", accepted.type(), sessionId, e.getClass().getSimpleName());
+        }
+    }
+
+    /**
+     * Paid model calls (a spoken turn, a diagram review) count against the person's daily budget and the service-wide
+     * hourly circuit breaker. Over budget: the frame is dropped and the candidate is told, once per attempt.
+     */
+    private boolean withinBudget(String sessionId, UUID userId, InterviewMessage message) {
+        if (!(message instanceof InterviewMessage.TranscriptFinal) && !(message instanceof InterviewMessage.DiagramLocked)) {
+            return true;
+        }
+        CostBudget.Verdict verdict = budget.spend(userId);
+        if (verdict == CostBudget.Verdict.OK) {
+            return true;
+        }
+        log.warn("Over the {} budget: dropping {} on session {}",
+                verdict == CostBudget.Verdict.USER_LIMIT ? "per-user daily" : "service-wide hourly", message.type(), sessionId);
+        registry.push(sessionId, new InterviewMessage.ChatMessage("chat.message", sessionId, "ai",
+                verdict == CostBudget.Verdict.USER_LIMIT
+                        ? "You've reached today's usage limit for interviews. It resets within 24 hours."
+                        : "The interviewer is very busy right now. Please try again in a little while.",
+                "filler", System.currentTimeMillis()));
+        return false;
+    }
+
+    /** User text from the socket with control characters and bidirectional overrides removed. */
+    private static InterviewMessage sanitized(InterviewMessage m) {
+        return switch (m) {
+            case InterviewMessage.TranscriptFinal f ->
+                    new InterviewMessage.TranscriptFinal(f.type(), f.sessionId(), TextSafety.clean(f.text()), f.ts());
+            case InterviewMessage.TranscriptPartial p ->
+                    new InterviewMessage.TranscriptPartial(p.type(), p.sessionId(), TextSafety.clean(p.text()), p.ts());
+            case InterviewMessage.ChatMessage c ->
+                    new InterviewMessage.ChatMessage(c.type(), c.sessionId(), c.sender(), TextSafety.clean(c.text()), c.kind(), c.ts());
+            default -> m;
+        };
+    }
+
+    /**
+     * Every transcript.final becomes a paid LLM call, so cap how long one can be and how often
+     * they arrive per session. Over-limit frames are dropped (and logged), not forwarded.
+     */
+    private boolean withinTranscriptLimits(String sessionId, InterviewMessage message) {
+        String text;
+        if (message instanceof InterviewMessage.TranscriptFinal f) {
+            text = f.text();
+        } else if (message instanceof InterviewMessage.TranscriptPartial p) {
+            text = p.text();
+        } else {
+            return true; // not a transcript frame
+        }
+        if (text == null || text.length() > limits.transcriptMaxChars()) {
+            log.warn("Dropping empty/oversized transcript frame on session {}", sessionId);
+            return false;
+        }
+        if (message instanceof InterviewMessage.TranscriptFinal
+                && !rateLimiter.allow("ws:transcript:" + sessionId, limits.transcriptMaxPerMinute(), 60_000)) {
+            log.warn("Dropping transcript.final over rate limit on session {}", sessionId);
+            return false;
+        }
+        return true;
     }
 
     @Override
     public void afterConnectionClosed(WebSocketSession socket, CloseStatus status) {
         String sessionId = (String) socket.getAttributes().get("sessionId");
         if (sessionId != null) {
-            registry.unregister(sessionId);
+            registry.unregister(sessionId, socket);
         }
         log.info("WS closed for session {} ({})", sessionId, status);
     }

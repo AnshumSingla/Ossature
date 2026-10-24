@@ -1,0 +1,54 @@
+<!doctype html><meta charset="utf-8"><title>Moonshine spike</title>
+<body style="font:14px system-ui"><pre id="log">ready</pre>
+<script type="module">
+import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.0';
+env.allowLocalModels = false;
+const log = (m) => { document.getElementById('log').textContent += '\n' + m; };
+
+const norm = (s) => s.toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+function wer(ref, hyp) {
+  const r = norm(ref), h = norm(hyp);
+  const d = Array.from({ length: r.length + 1 }, (_, i) => [i, ...Array(h.length).fill(0)]);
+  for (let j = 1; j <= h.length; j++) d[0][j] = j;
+  for (let i = 1; i <= r.length; i++) for (let j = 1; j <= h.length; j++)
+    d[i][j] = Math.min(d[i-1][j] + 1, d[i][j-1] + 1, d[i-1][j-1] + (r[i-1] === h[j-1] ? 0 : 1));
+  return { errors: d[r.length][h.length], words: r.length };
+}
+const TERMS = ['kafka','redis','idempotent','idempotency','postgres','elasticsearch','sharding','shard','websockets','load balancer','consistent hashing','token bucket','circuit breaker','availability zones','content delivery network','fan out'];
+
+window.runSpike = async (modelId, dtype, device = 'wasm') => {
+  const out = { modelId, dtype, device, crossOriginIsolated, cores: navigator.hardwareConcurrency };
+  const phrases = await (await fetch('phrases.json')).json();
+  performance.clearResourceTimings();
+  const t0 = performance.now();
+  const asr = await pipeline('automatic-speech-recognition', modelId, { dtype, device });
+  out.loadMs = Math.round(performance.now() - t0);
+  const res = performance.getEntriesByType('resource').filter(e => /huggingface|hf\.co|xethub|jsdelivr/.test(e.name));
+  out.downloadMB = +(res.reduce((a, e) => a + (e.encodedBodySize || e.transferSize || 0), 0) / 1e6).toFixed(1);
+  out.files = res.map(e => e.name.split('/').slice(-1)[0].split('?')[0] + ' ' + ((e.encodedBodySize||0)/1e6).toFixed(1) + 'MB');
+  const ctx = new AudioContext({ sampleRate: 16000 });
+  out.clips = [];
+  let errs = 0, words = 0, audioS = 0, procMs = 0, termHit = 0, termTotal = 0;
+  for (let i = 0; i < phrases.length; i++) {
+    const buf = await (await fetch(`audio/p${String(i).padStart(2, '0')}.wav`)).arrayBuffer();
+    const audio = (await ctx.decodeAudioData(buf)).getChannelData(0);
+    const t = performance.now();
+    const r = await asr(audio);
+    const ms = performance.now() - t;
+    const w = wer(phrases[i], r.text);
+    const dur = audio.length / 16000;
+    errs += w.errors; words += w.words; audioS += dur; procMs += ms;
+    const refN = norm(phrases[i]).join(' '), hypN = norm(r.text).join(' ');
+    for (const term of TERMS) if (refN.includes(term)) { termTotal++; if (hypN.includes(term)) termHit++; }
+    out.clips.push({ i, dur: +dur.toFixed(2), ms: Math.round(ms), warm: i === 0, hyp: r.text.trim() });
+  }
+  out.WER = +(100 * errs / words).toFixed(1);
+  out.termRecall = `${termHit}/${termTotal}`;
+  out.rtf = +(procMs / 1000 / audioS).toFixed(3);   // <1 = faster than real time
+  out.avgMsPerClip = Math.round(procMs / phrases.length);
+  out.heapMB = performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1e6) : null;
+  return out;
+};
+log('loaded; call runSpike(model, dtype)');
+window.spikeReady = true;
+</script>

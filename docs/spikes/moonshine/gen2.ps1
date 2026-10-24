@@ -1,0 +1,43 @@
+Add-Type -AssemblyName System.Speech;$s=New-Object System.Speech.Synthesis.SpeechSynthesizer;$f=New-Object System.Speech.AudioFormat.SpeechAudioFormatInfo(16000,[System.Speech.AudioFormat.AudioBitsPerSample]::Sixteen,[System.Speech.AudioFormat.AudioChannel]::Mono)
+$s.SelectVoice('Microsoft David Desktop');$s.Rate=0
+$s.SetOutputToWaveFile('audio2\v0_p00.wav',$f);$s.Speak('I would put a load balancer in front of several stateless API servers.');$s.SetOutputToNull();
+$s.SetOutputToWaveFile('audio2\v0_p01.wav',$f);$s.Speak('We can shard the database by user id and use consistent hashing to spread the load.');$s.SetOutputToNull();
+$s.SetOutputToWaveFile('audio2\v0_p02.wav',$f);$s.Speak('Reads are cached in Redis with a time to live of five minutes.');$s.SetOutputToNull();
+$s.SetOutputToWaveFile('audio2\v0_p03.wav',$f);$s.Speak('To keep the write path idempotent the client sends an idempotency key with every request.');$s.SetOutputToNull();
+$s.SetOutputToWaveFile('audio2\v0_p04.wav',$f);$s.Speak('Kafka gives us a durable log, and the consumers process events at least once.');$s.SetOutputToNull();
+$s.SetOutputToWaveFile('audio2\v0_p05.wav',$f);$s.Speak('A content delivery network serves the static assets close to the user.');$s.SetOutputToNull();
+$s.SetOutputToWaveFile('audio2\v0_p06.wav',$f);$s.Speak('The rate limiter uses a token bucket per API key, stored in Redis.');$s.SetOutputToNull();
+$s.SetOutputToWaveFile('audio2\v0_p07.wav',$f);$s.Speak('For the news feed we fan out on write for normal users, and fan out on read for celebrities.');$s.SetOutputToNull();
+$s.SetOutputToWaveFile('audio2\v0_p08.wav',$f);$s.Speak('Postgres is the source of truth, and Elasticsearch handles full text search.');$s.SetOutputToNull();
+$s.SetOutputToWaveFile('audio2\v0_p09.wav',$f);$s.Speak('We replicate across availability zones and use a circuit breaker to avoid cascading failures.');$s.SetOutputToNull();
+$s.SetOutputToWaveFile('audio2\v0_p10.wav',$f);$s.Speak('The URL shortener generates a base sixty two code from an auto incrementing counter.');$s.SetOutputToNull();
+$s.SetOutputToWaveFile('audio2\v0_p11.wav',$f);$s.Speak('WebSockets keep a persistent connection so the server can push messages with low latency.');$s.SetOutputToNull();
+$s.SetOutputToWaveFile('audio2\v0_p12.wav',$f);$s.Speak('The message queue guarantees ordering within a partition, and the consumer group handles rebalancing.');$s.SetOutputToNull();
+$s.SetOutputToWaveFile('audio2\v0_p13.wav',$f);$s.Speak('We use leader follower replication, with eventual consistency for the read replicas.');$s.SetOutputToNull();
+$s.SetOutputToWaveFile('audio2\v0_p14.wav',$f);$s.Speak('A bloom filter checks whether the short code already exists before we hit the database.');$s.SetOutputToNull();
+$s.SetOutputToWaveFile('audio2\v0_p15.wav',$f);$s.Speak('The API gateway handles authentication, throttling, and routes requests to the microservices.');$s.SetOutputToNull();
+$s.SetOutputToWaveFile('audio2\v0_p16.wav',$f);$s.Speak('For analytics we stream click events through Kafka into a data warehouse, partitioned by day.');$s.SetOutputToNull();
+$s.SetOutputToWaveFile('audio2\v0_p17.wav',$f);$s.Speak('We can use a write ahead log so that a crash does not lose acknowledged writes.');$s.SetOutputToNull();
+$s.SetOutputToWaveFile('audio2\v0_p18.wav',$f);$s.Speak('Cassandra gives us high write throughput, and DynamoDB is an option if we want a managed service.');$s.SetOutputToNull();
+$s.SetOutputToWaveFile('audio2\v0_p19.wav',$f);$s.Speak('The cache invalidation strategy is write through, with a short TTL as a safety net.');$s.SetOutputToNull();
+$s.SelectVoice('Microsoft Zira Desktop');$s.Rate=1
+$s.SetOutputToWaveFile('audio2\v1_p00.wav',$f);$s.Speak('I would put a load balancer in front of several stateless API servers.');$s.SetOutputToNull();
+$s.SetOutputToWaveFile('audio2\v1_p01.wav',$f);$s.Speak('We can shard the database by user id and use consistent hashing to spread the load.');$s.SetOutputToNull();
+$s.SetOutputToWaveFile('audio2\v1_p02.wav',$f);$s.Speak('Reads are cached in Redis with a time to live of five minutes.');$s.SetOutputToNull();
+$s.SetOutputToWaveFile('audio2\v1_p03.wav',$f);$s.Speak('To keep the write path idempotent the client sends an idempotency key with every request.');$s.SetOutputToNull();
+$s.SetOutputToWaveFile('audio2\v1_p04.wav',$f);$s.Speak('Kafka gives us a durable log, and the consumers process events at least once.');$s.SetOutputToNull();
+$s.SetOutputToWaveFile('audio2\v1_p05.wav',$f);$s.Speak('A content delivery network serves the static assets close to the user.');$s.SetOutputToNull();
+$s.SetOutputToWaveFile('audio2\v1_p06.wav',$f);$s.Speak('The rate limiter uses a token bucket per API key, stored in Redis.');$s.SetOutputToNull();
+$s.SetOutputToWaveFile('audio2\v1_p07.wav',$f);$s.Speak('For the news feed we fan out on write for normal users, and fan out on read for celebrities.');$s.SetOutputToNull();
+$s.SetOutputToWaveFile('audio2\v1_p08.wav',$f);$s.Speak('Postgres is the source of truth, and Elasticsearch handles full text search.');$s.SetOutputToNull();
+$s.SetOutputToWaveFile('audio2\v1_p09.wav',$f);$s.Speak('We replicate across availability zones and use a circuit breaker to avoid cascading failures.');$s.SetOutputToNull();
+$s.SetOutputToWaveFile('audio2\v1_p10.wav',$f);$s.Speak('The URL shortener generates a base sixty two code from an auto incrementing counter.');$s.SetOutputToNull();
+$s.SetOutputToWaveFile('audio2\v1_p11.wav',$f);$s.Speak('WebSockets keep a persistent connection so the server can push messages with low latency.');$s.SetOutputToNull();
+$s.SetOutputToWaveFile('audio2\v1_p12.wav',$f);$s.Speak('The message queue guarantees ordering within a partition, and the consumer group handles rebalancing.');$s.SetOutputToNull();
+$s.SetOutputToWaveFile('audio2\v1_p13.wav',$f);$s.Speak('We use leader follower replication, with eventual consistency for the read replicas.');$s.SetOutputToNull();
+$s.SetOutputToWaveFile('audio2\v1_p14.wav',$f);$s.Speak('A bloom filter checks whether the short code already exists before we hit the database.');$s.SetOutputToNull();
+$s.SetOutputToWaveFile('audio2\v1_p15.wav',$f);$s.Speak('The API gateway handles authentication, throttling, and routes requests to the microservices.');$s.SetOutputToNull();
+$s.SetOutputToWaveFile('audio2\v1_p16.wav',$f);$s.Speak('For analytics we stream click events through Kafka into a data warehouse, partitioned by day.');$s.SetOutputToNull();
+$s.SetOutputToWaveFile('audio2\v1_p17.wav',$f);$s.Speak('We can use a write ahead log so that a crash does not lose acknowledged writes.');$s.SetOutputToNull();
+$s.SetOutputToWaveFile('audio2\v1_p18.wav',$f);$s.Speak('Cassandra gives us high write throughput, and DynamoDB is an option if we want a managed service.');$s.SetOutputToNull();
+$s.SetOutputToWaveFile('audio2\v1_p19.wav',$f);$s.Speak('The cache invalidation strategy is write through, with a short TTL as a safety net.');$s.SetOutputToNull();
