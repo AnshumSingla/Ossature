@@ -57,7 +57,7 @@ def http(method: str, url: str, body=None, token: str | None = None, timeout: fl
     if token:
         req.add_header("Authorization", "Bearer " + token)
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
+        with urllib.request.urlopen(req, timeout=timeout) as r:  # nosemgrep: dynamic-urllib-use-detected -- localhost test URLs built in this script
             raw = r.read()
             return r.status, (json.loads(raw) if raw else None)
     except urllib.error.HTTPError as e:
@@ -82,7 +82,7 @@ def wait_for(url: str, what: str, seconds: int = 120) -> None:
     deadline = time.time() + seconds
     while time.time() < deadline:
         try:
-            with urllib.request.urlopen(url, timeout=2) as r:
+            with urllib.request.urlopen(url, timeout=2) as r:  # nosemgrep: dynamic-urllib-use-detected -- localhost test URLs built in this script
                 if r.status == 200:
                     return
         except Exception:

@@ -63,12 +63,12 @@ def pypi_packages() -> list[tuple[str, str, str, str]]:
 
 def post(path: str, body: dict) -> dict:
     req = urllib.request.Request(OSV + path, data=json.dumps(body).encode(), headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=60) as r:
+    with urllib.request.urlopen(req, timeout=60) as r:  # nosemgrep: dynamic-urllib-use-detected -- fixed https://api.osv.dev base
         return json.loads(r.read())
 
 
 def get(path: str) -> dict:
-    with urllib.request.urlopen(OSV + path, timeout=60) as r:
+    with urllib.request.urlopen(OSV + path, timeout=60) as r:  # nosemgrep: dynamic-urllib-use-detected -- fixed https://api.osv.dev base
         return json.loads(r.read())
 
 

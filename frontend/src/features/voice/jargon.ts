@@ -52,6 +52,7 @@ const ALIAS_RULES: Array<[RegExp, string]> = ALIASES.flatMap(([term, aliases]) =
   aliases
     .filter((a) => a.toLowerCase() !== term.toLowerCase())
     .map((alias): [RegExp, string] => [
+      // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp -- built once from our own constant alias table with every word escaped; never from user input
       new RegExp(`\\b${alias.split(/\s+/).map(escapeRe).join('\\s+')}\\b`, 'gi'),
       term,
     ]),

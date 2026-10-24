@@ -70,6 +70,19 @@ jobs:
       # scripts/audit-allowlist.json.
       - run: python scripts/audit_dependencies.py
 
+  static-analysis:
+    runs-on: ubuntu-latest
+    container: semgrep/semgrep
+    steps:
+      - uses: actions/checkout@v4
+      # Reviewed false positives carry an inline `nosemgrep` comment with the reason; --error fails on any other finding.
+      - run: >-
+          semgrep scan --metrics=off --error
+          --config p/default --config p/java --config p/python --config p/typescript --config p/react
+          --config p/owasp-top-ten --config p/jwt --config p/secrets
+          --exclude node_modules --exclude target --exclude .venv --exclude dist
+          backend/src/main agent/app frontend/src scripts
+
   secret-scan:
     runs-on: ubuntu-latest
     steps:
