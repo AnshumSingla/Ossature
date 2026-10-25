@@ -1,7 +1,7 @@
 # Local infra only. Application services run on the host during development.
 services:
   postgres:
-    image: postgres:16.15-alpine   # pinned (H20); bump deliberately, Dependabot watches this file
+    image: postgres:18.6-alpine   # pinned (H20); bump deliberately, Dependabot watches this file
     container_name: ossature-postgres
     restart: unless-stopped
     environment:
