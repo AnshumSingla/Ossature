@@ -69,8 +69,8 @@ class LogMaskingTest {
         LoggerContext ctx = new LoggerContext();
         PatternLayout layout = new PatternLayout();
         layout.setContext(ctx);
-        layout.getDefaultConverterMap().put("mmsg", MaskingMessageConverter.class.getName());
-        layout.getDefaultConverterMap().put("mex", MaskingThrowableConverter.class.getName());
+        layout.getInstanceConverterMap().put("mmsg", MaskingMessageConverter::new);
+        layout.getInstanceConverterMap().put("mex", MaskingThrowableConverter::new);
         layout.setPattern("%5p : %mmsg%n%mex");
         layout.start();
         return layout.doLayout(event);

@@ -8,9 +8,9 @@ How the three services map onto the PRD, and what is implemented vs. stubbed in 
   bridge to the agent. It never calls an LLM. PRD §6.2.
 - **`agent/` (LangGraph + FastAPI)** owns the state graph and every LLM call. It is stateless
   over HTTP but keeps per-session graph state in-process (`app/turns.py`). PRD §6.3.
-- **`frontend/`** owns the whiteboard, STT/TTS (Web Speech API) and the transcript UI. TTS
-  (`speechSynthesis`) is genuinely local. STT (`SpeechRecognition`) is **not** - see below;
-  the PRD §6.5 claim that both legs are "local, on-device" is incorrect and should be fixed.
+- **`frontend/`** owns the whiteboard, speech and the transcript UI. Both speech legs run on the
+  device: TTS with `speechSynthesis`, STT with Whisper tiny.en (transformers.js in a Web Worker,
+  English only, model files verified against a pinned hash manifest). Audio never leaves the browser.
 
 ## Request flow
 
