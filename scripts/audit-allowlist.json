@@ -1,0 +1,17 @@
+[
+  {
+    "id": "GHSA-f88m-g3jw-g9cj",
+    "reason": "sharp is a Node-only dependency of @huggingface/transformers. The browser bundle stubs it out ('sharp (ignored)'), and the app never runs transformers.js in Node, so the vulnerable libvips is never loaded. The fix needs transformers 4.x (breaking); revisit when upgrading it.",
+    "until": "2027-01-31"
+  },
+  {
+    "id": "GHSA-rgj7-g3m4-5g8c",
+    "reason": "Same as GHSA-f88m-g3jw-g9cj (sharp, Node-only, not shipped to the browser).",
+    "until": "2027-01-31"
+  },
+  {
+    "id": "GHSA-wq5f-xc86-pv6w",
+    "reason": "Same as GHSA-f88m-g3jw-g9cj (sharp, Node-only, not shipped to the browser).",
+    "until": "2027-01-31"
+  }
+]

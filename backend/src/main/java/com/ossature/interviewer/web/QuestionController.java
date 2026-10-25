@@ -1,5 +1,7 @@
 package com.ossature.interviewer.web;
 
+import com.ossature.interviewer.domain.Question;
+import com.ossature.interviewer.domain.QuestionStatus;
 import com.ossature.interviewer.service.QuestionBankService;
 import com.ossature.interviewer.web.dto.ApiDtos.QuestionView;
 import com.ossature.interviewer.web.dto.ApiDtos.SubmitQuestionRequest;
@@ -37,9 +39,27 @@ public class QuestionController {
         return bank.listPending().stream().map(QuestionView::of).toList();
     }
 
+    /**
+     * Public for approved questions only. A pending/rejected one is visible just to its
+     * submitter and the owner; everyone else gets the same 404 as for an unknown id, so the
+     * endpoint can't be used to read unreviewed content or to probe which ids exist.
+     */
     @GetMapping("/{id}")
-    public QuestionView get(@PathVariable UUID id) {
-        return QuestionView.of(bank.get(id));
+    public QuestionView get(@PathVariable UUID id, Authentication auth) {
+        Question q = bank.get(id);
+        if (q.getStatus() != QuestionStatus.APPROVED && !canSeeUnapproved(q, auth)) {
+            throw new IllegalArgumentException("Unknown question " + id);
+        }
+        return QuestionView.of(q);
+    }
+
+    private static boolean canSeeUnapproved(Question q, Authentication auth) {
+        if (auth == null || !auth.isAuthenticated()) {
+            return false;
+        }
+        boolean owner = auth.getAuthorities().stream().anyMatch(a -> "ROLE_OWNER".equals(a.getAuthority()));
+        boolean submitter = auth.getPrincipal() instanceof UUID uid && uid.equals(q.getSubmittedBy());
+        return owner || submitter;
     }
 
     /** Community submission -> PENDING, added only after manual owner review (PRD 9). */

@@ -1,0 +1,14 @@
+# Secret scanning (C8). Reviewed false positives only; everything else fails the build.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Reviewed false positives"
+paths = [
+  # a deliberately fake JWT (the public jwt.io sample) used to prove log masking works
+  '''backend/src/test/java/com/ossature/interviewer/logging/LoggingConfigIntegrationTest\.java''',
+  # SHA-256 file hashes of the pinned speech model (integrity manifest); public values, not credentials
+  '''frontend/public/stt/model-manifest\.json''',
+  # a made-up sentence ("a-private-sentence-4711") used as a marker to prove one user cannot read another's data
+  '''backend/src/test/java/com/ossature/interviewer/security/FullStackSupport\.java''',
+]

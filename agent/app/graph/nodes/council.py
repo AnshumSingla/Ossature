@@ -11,6 +11,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.graph.state import InterviewState
 from app.llm import council_critic_model, council_generator_model
+from app.prompting import untrusted, with_rules
 
 GENERATOR_SYSTEM = """You are a staff engineer. Produce a reference system design for the prompt.
 Return: a short summary, the key components, the main data flows, and the top trade-offs.
@@ -33,31 +34,37 @@ def council_node(state: InterviewState) -> InterviewState:
         # Bank prompt with a pre-baked reference: nothing to generate (PRD 6.3).
         return {"council_running": False, "council_done": True}
 
-    prompt = state["prompt"]
-    clarifying = _format_clarifying(state.get("clarifying_qa", []))
+    # The prompt may be a community submission and the Q&A contains the candidate's own words, so
+    # both are untrusted. The draft and critique are model output derived from them, so they are
+    # tagged as data too when fed back in.
+    prompt = untrusted("question_prompt", state["prompt"], 4000)
+    clarifying = untrusted("conversation", _format_clarifying(state.get("clarifying_qa", [])), 6000)
 
     generator = council_generator_model()
     critic = council_critic_model()
 
     draft = generator.invoke(
         [
-            SystemMessage(content=GENERATOR_SYSTEM),
-            HumanMessage(content=f"Prompt: {prompt}\n\nClarifying Q&A:\n{clarifying}"),
+            SystemMessage(content=with_rules(GENERATOR_SYSTEM)),
+            HumanMessage(content=f"{prompt}\n\nClarifying Q&A:\n{clarifying}"),
         ]
     ).content
 
     critique = critic.invoke(
         [
-            SystemMessage(content=CRITIC_SYSTEM),
-            HumanMessage(content=f"Prompt: {prompt}\n\nProposed design:\n{draft}"),
+            SystemMessage(content=with_rules(CRITIC_SYSTEM)),
+            HumanMessage(content=f"{prompt}\n\nProposed design:\n{untrusted('draft', draft, 8000)}"),
         ]
     ).content
 
     final = generator.invoke(
         [
-            SystemMessage(content=RECONCILE_SYSTEM),
+            SystemMessage(content=with_rules(RECONCILE_SYSTEM)),
             HumanMessage(
-                content=f"Prompt: {prompt}\n\nYour draft:\n{draft}\n\nCritique:\n{critique}"
+                content=(
+                    f"{prompt}\n\nYour draft:\n{untrusted('draft', draft, 8000)}"
+                    f"\n\nCritique:\n{untrusted('critique', critique, 4000)}"
+                )
             ),
         ]
     ).content

@@ -1,22 +1,25 @@
+# Exact pins. Refresh with scripts/audit_dependencies.py (H20); Dependabot also opens update PRs.
 # --- Web service ---
-fastapi==0.115.6
-uvicorn[standard]==0.34.0
-websockets==14.1
-pydantic==2.10.4
-pydantic-settings==2.7.0
-python-dotenv==1.0.1
+fastapi==0.157.0
+uvicorn[standard]==0.54.0
+websockets==16.1.1
+pydantic==2.14.1
+pydantic-settings==2.16.1
+python-dotenv==1.2.4
 httpx==0.28.1
 
-# --- LangGraph / LangChain ---
-langgraph==0.2.60
-langchain==0.3.14
-langchain-core==0.3.29
-langchain-openai==0.2.14
-langchain-community==0.3.14
+# --- LangGraph / LangChain (only what app/ imports: langgraph, langchain-core, langchain-openai) ---
+langgraph==1.2.16
+langchain-core==1.6.12
+langchain-openai==1.7.2
 
 # --- Observability ---
-structlog==24.4.0
+structlog==26.1.0
 
 # --- Session-state durability (app/store.py) ---
-SQLAlchemy==2.0.52
-psycopg[binary]==3.2.3
+SQLAlchemy==2.1.5
+psycopg[binary]==3.3.6
+
+# --- Security-relevant transitive pins (older releases have known vulnerabilities) ---
+starlette==1.9.0
+certifi==2026.10.19

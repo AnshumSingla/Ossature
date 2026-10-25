@@ -12,7 +12,8 @@ from fastapi import Depends, FastAPI
 
 from app import store, turns
 from app.config import get_settings
-from app.security import require_internal_token
+from app.logging_safe import configure_logging
+from app.security import ensure_production_safe, require_internal_token
 from app.schemas import (
     DebriefRequest,
     DebriefResponse,
@@ -28,8 +29,12 @@ from app.schemas import (
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    store.ensure_schema()
+    configure_logging()
+    ensure_production_safe()
+    store.check_connection()
+    sweeper = turns.start_council_sweeper()  # also resumes Council jobs a previous run left unfinished
     yield
+    sweeper.set()
 
 
 app = FastAPI(title="Ossature Interview Agent", version="0.1.0", lifespan=lifespan)

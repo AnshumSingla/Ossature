@@ -1,6 +1,8 @@
 package com.ossature.interviewer.web;
 
 import com.ossature.interviewer.config.AppProperties;
+import com.ossature.interviewer.security.WsTicketService;
+import com.ossature.interviewer.web.dto.ApiDtos.WsTicketView;
 import com.ossature.interviewer.domain.InterviewSession;
 import com.ossature.interviewer.repo.InterimSummaryRepository;
 import com.ossature.interviewer.service.InterviewFlowService;
@@ -33,9 +35,12 @@ public class SessionController {
     private final InterviewFlowService flow;
     private final RateLimiter rateLimiter;
     private final AppProperties.RateLimit limits;
+    private final WsTicketService tickets;
 
     public SessionController(SessionService sessions, InterimSummaryRepository summaries,
-                             InterviewFlowService flow, RateLimiter rateLimiter, AppProperties props) {
+                             InterviewFlowService flow, RateLimiter rateLimiter, AppProperties props,
+                             WsTicketService tickets) {
+        this.tickets = tickets;
         this.sessions = sessions;
         this.summaries = summaries;
         this.flow = flow;
@@ -60,6 +65,15 @@ public class SessionController {
     @GetMapping
     public List<SessionView> list(Authentication auth) {
         return sessions.listForUser(userId(auth)).stream().map(SessionView::of).toList();
+    }
+
+    /** Deletes this interview (transcript, diagram, summaries, debrief) permanently. */
+    @org.springframework.web.bind.annotation.DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable UUID id, Authentication auth) {
+        owned(id, auth);
+        sessions.delete(id);
+        sessions.forgetAgentState(id);
     }
 
     @GetMapping("/{id}")
@@ -95,6 +109,20 @@ public class SessionController {
     public List<Map<String, Object>> events(@PathVariable UUID id, Authentication auth) {
         owned(id, auth);
         return flow.fullHistory(id);
+    }
+
+    /**
+     * A one-time ticket for opening this session's WebSocket. Replaces putting the login token in
+     * the WebSocket URL: the ticket is short-lived, single-use and bound to this session.
+     */
+    @PostMapping("/{id}/ws-ticket")
+    public WsTicketView wsTicket(@PathVariable UUID id, Authentication auth) {
+        UUID caller = userId(auth);
+        InterviewSession s = owned(id, auth);
+        if (!rateLimiter.allow("ws-ticket:" + caller, 60, 60_000)) {
+            throw new TooManyRequestsException("Too many connection attempts - try again shortly");
+        }
+        return new WsTicketView(tickets.issue(caller, s.getId()), tickets.ttl().toSeconds());
     }
 
     private InterviewSession owned(UUID sessionId, Authentication auth) {

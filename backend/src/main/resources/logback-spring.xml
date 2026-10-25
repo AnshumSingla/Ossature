@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Console logging with every message and stack trace passed through Masking (H15): JWTs, Bearer
+  tokens, token/ticket/password pairs and email addresses are redacted before they reach the log.
+  Log levels still come from application.yml (logging.level.*) as usual.
+-->
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <conversionRule conversionWord="mmsg" converterClass="com.ossature.interviewer.logging.MaskingMessageConverter"/>
+    <conversionRule conversionWord="mex" converterClass="com.ossature.interviewer.logging.MaskingThrowableConverter"/>
+
+    <property name="MASKED_LOG_PATTERN"
+              value="%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %5p ${PID:- } --- [%15.15t] %-40.40logger{39} : %mmsg%n%mex"/>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${MASKED_LOG_PATTERN}</pattern>
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+</configuration>

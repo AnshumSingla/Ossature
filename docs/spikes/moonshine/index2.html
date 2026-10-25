@@ -1,0 +1,32 @@
+<!doctype html><meta charset="utf-8"><title>STT model bake-off</title><body><pre id="log">ready</pre>
+<script type="module">
+import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.0';
+env.allowLocalModels = false;
+const norm = (s) => s.toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+function wer(ref, hyp) { const r = norm(ref), h = norm(hyp); const d = Array.from({ length: r.length + 1 }, (_, i) => [i, ...Array(h.length).fill(0)]); for (let j = 1; j <= h.length; j++) d[0][j] = j; for (let i = 1; i <= r.length; i++) for (let j = 1; j <= h.length; j++) d[i][j] = Math.min(d[i-1][j] + 1, d[i][j-1] + 1, d[i-1][j-1] + (r[i-1] === h[j-1] ? 0 : 1)); return { errors: d[r.length][h.length], words: r.length }; }
+// terms checked after removing spaces/punctuation, so "web sockets" == "websockets", "elastic search" == "elasticsearch"
+const TERMS = ['kafka','redis','idempotent','idempotency','postgres','elasticsearch','sharding','shard','websockets','loadbalancer','consistenthashing','tokenbucket','circuitbreaker','availabilityzones','contentdeliverynetwork','fanout','stateless','bloomfilter','cassandra','dynamodb','microservices','writeaheadlog','writethrough','ttl','partition','rebalancing','throttling','replicas','eventualconsistency','leaderfollower','datawarehouse'];
+const squash = (s) => norm(s).join('');
+window.run = async (modelId, dtype, device = 'wasm', limit = 99) => {
+  const clips = (await (await fetch('clips2.json')).json()).slice(0, limit);
+  performance.clearResourceTimings();
+  const t0 = performance.now();
+  const asr = await pipeline('automatic-speech-recognition', modelId, { dtype, device });
+  const loadMs = Math.round(performance.now() - t0);
+  const ctx = new AudioContext({ sampleRate: 16000 });
+  let errs = 0, words = 0, audioS = 0, procMs = 0, hit = 0, tot = 0; const out = [];
+  for (let i = 0; i < clips.length; i++) {
+    const buf = await (await fetch('audio2/' + clips[i].file)).arrayBuffer();
+    const audio = (await ctx.decodeAudioData(buf)).getChannelData(0);
+    const t = performance.now(); const r = await asr(audio); const ms = performance.now() - t;
+    const w = wer(clips[i].ref, r.text); errs += w.errors; words += w.words; audioS += audio.length / 16000; if (i > 0) procMs += ms; // skip warm-up clip in latency
+    const refS = squash(clips[i].ref), hypS = squash(r.text);
+    for (const term of TERMS) if (refS.includes(term)) { tot++; if (hypS.includes(term)) hit++; }
+    out.push({ file: clips[i].file, ms: Math.round(ms), hyp: r.text.trim() });
+  }
+  const n = clips.length;
+  return { modelId, dtype, device, isolated: crossOriginIsolated, loadMs, clips: n, WER: +(100 * errs / words).toFixed(1), jargon: `${hit}/${tot}`, jargonPct: +(100 * hit / tot).toFixed(0),
+    avgMsPerClip: Math.round(procMs / Math.max(1, n - 1)), avgClipS: +(audioS / n).toFixed(1), out };
+};
+window.ready = true;
+</script>

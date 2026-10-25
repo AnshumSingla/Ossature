@@ -34,12 +34,15 @@ public class EventLogService {
         return events.findBySessionIdAndSeqGreaterThanOrderBySeqAsc(sessionId, afterSeq);
     }
 
+    /** A JSON-escaped NUL (backslash-u0000, not preceded by an escaping backslash): jsonb cannot store it. */
+    private static final java.util.regex.Pattern NUL_ESCAPE = java.util.regex.Pattern.compile("(?<!\\\\)((?:\\\\\\\\)*)\\\\u0000");
+
     private String toJson(Object payload) {
         if (payload instanceof String s) {
             return s;
         }
         try {
-            return mapper.writeValueAsString(payload);
+            return NUL_ESCAPE.matcher(mapper.writeValueAsString(payload)).replaceAll("$1");
         } catch (JacksonException e) {
             throw new IllegalArgumentException("Cannot serialize event payload", e);
         }

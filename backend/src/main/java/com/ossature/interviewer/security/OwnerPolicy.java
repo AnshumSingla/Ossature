@@ -1,6 +1,7 @@
 package com.ossature.interviewer.security;
 
 import com.ossature.interviewer.config.AppProperties;
+import com.ossature.interviewer.service.Emails;
 import java.util.List;
 import org.springframework.stereotype.Component;
 
@@ -16,6 +17,10 @@ public class OwnerPolicy {
 
     public boolean isOwner(String email) {
         List<String> owners = props.auth().ownerEmails();
-        return email != null && owners != null && owners.stream().anyMatch(email::equalsIgnoreCase);
+        if (email == null || owners == null) {
+            return false;
+        }
+        String normalized = Emails.normalize(email);
+        return owners.stream().map(Emails::normalize).anyMatch(normalized::equals);
     }
 }

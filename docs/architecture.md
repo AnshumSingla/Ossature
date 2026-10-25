@@ -113,14 +113,208 @@ for the cost/privacy story, the real fix is a genuinely local STT engine (e.g. a
 WASM-compiled Whisper build) rather than the browser's built-in API — worth a deliberate
 decision, not a silent scope change.
 
+### Local STT implementation (2026-10-12) - on-device only, works in Brave, Firefox, Safari
+
+**Speech input is on-device only.** The browser's Web Speech API (which sends audio to the
+vendor's cloud and fails in Brave) is no longer used for input - the section above is kept as
+history. The interview room uses `useLocalSpeechRecognition`
+(frontend/src/hooks/useLocalSpeech.ts); if the browser cannot run the local engine, or the model
+cannot be downloaded, the room shows a typing box instead. Text-to-speech for the interviewer's
+replies still uses the browser's local `speechSynthesis`.
+
+**The model starts downloading as soon as the site opens.** `App.tsx` calls
+`preloadVoiceModel()` (features/voice/shared.ts) on first load of *any* page - landing, login,
+anywhere - when the browser is idle. It never touches the microphone (no permission prompt),
+failures are silent (pressing Start mic retries), and it is skipped when the visitor has Data
+Saver on or a 2G connection, or when `VITE_STT_PRELOAD=false`. The engine is a single shared
+instance that outlives page navigation, so by the time an interview starts the model is already
+in memory and "Start mic" is instant. A one-line status shows on the question-bank page.
+Cost to be aware of: every first-time visitor downloads ~41 MB (cached afterwards) whether or
+not they ever do an interview, and with the default settings the request goes to Hugging Face,
+so it exposes the visitor's IP to them - self-host the files (`VITE_STT_MODEL_HOST`) to avoid
+both the third-party request and its availability dependency.
+
+```
+mic -> AudioWorklet (public/stt/capture-worklet.js) -> Resampler (native rate -> 16 kHz)
+    -> UtteranceSegmenter (energy VAD, pauses end a phrase) -> Web Worker (Moonshine) -> final text
+```
+
+- `features/voice/engine.ts` - the `LocalSpeechEngine` contract and `createLocalEngine`, the one
+  place that chooses an adapter. A future Whisper/Vosk engine = one new class + one `case`.
+- `features/voice/transformers/` - `TransformersEngine` (main thread) and `worker.ts` (model,
+  off-thread). Generic: any speech model transformers.js can run, selected by config.
+- `features/voice/shared.ts` - the single shared engine, load-state store, and the preload.
+- `features/voice/segmenter.ts`, `resample.ts` - pure logic, unit-tested (`npm test`).
+- Mic is requested **before** the model download, so a permission denial fails instantly.
+- Resampling is done in our code at the mic's native rate (not a 16 kHz AudioContext), because
+  Firefox has historically refused mixed-rate connections.
+- The ONNX runtime's WebAssembly files are served from our own origin (`/ort/`, Vite plugin in
+  `vite.config.ts`), single-threaded, so no COOP/COEP headers are needed.
+- Model files come from the Hugging Face Hub at a **pinned commit**; set `VITE_STT_MODEL_HOST`
+  to self-host (see `frontend/.env.example`). Cached by the browser after the first load.
+  Download progress is measured against the expected size and never goes backwards.
+- No word-by-word partials: the models transcribe whole phrases, so text appears after the
+  speaker pauses (about 0.7 s of silence ends a phrase) plus the model's decode time.
+
+Verified: segmenter/resampler unit tests (15); a continuous 80 s, 48 kHz stream of 12 phrases
+cut into exactly 12 utterances and transcribed in order through the real worker and model
+(14.8 % word error rate, same jargon misses as the spike); production build bundles the worker and
+emits `/ort/`; in-room UI states (mic denied message, voice setting, typing box).
+**Not verified:** a real microphone (the preview browser blocks capture), Brave itself, Firefox
+and Safari. Known cost: the production build also emits an unused 21 MB duplicate of the ONNX
+runtime under `assets/` (the `/ort/` copy is the one used) - harmless but worth trimming.
+
+### STT model bake-off - why Whisper tiny.en (2026-10-12)
+
+Asked to use a better model than Moonshine tiny, five candidates were run in the same
+harness (`docs/spikes/moonshine/index2.html`): 40 clips = 20 jargon-heavy system-design
+phrases x 2 Windows TTS voices, quantised q8, single-thread WebAssembly, Chromium on a
+16-core desktop. "Jargon" = share of 70 technical terms (Kafka, idempotency, Postgres,
+Elasticsearch, write-ahead log...) that came out right, ignoring spacing.
+
+| Model | Download (q8) | Word error rate | Jargon right | Time per phrase | First load |
+|-------|--------------|-----------------|--------------|-----------------|------------|
+| Moonshine tiny (previous default) | ~28 MB | 10.9 % | 77 % | 0.39 s | 7 s |
+| Moonshine base | ~63 MB | 9.3 % | 80 % | 0.67 s | 1 s (cached) |
+| **Whisper tiny.en (chosen)** | **~41 MB** | **7.5 %** | **86 %** | 1.7 s | 32 s |
+| Whisper base.en | ~77 MB | 7.9 % | 86 % | 3.4 s | 59 s |
+| Whisper small.en | ~249 MB | not measured (run stopped before it finished) | - | - | - |
+
+Findings:
+
+- Whisper tiny.en is the most accurate per megabyte and per second spent. Larger Whisper
+  (base.en) was *not* more accurate here and twice as slow. small.en was not measured (stopped
+  before it finished), but at ~249 MB it is already too large to download in the background on
+  every first visit, so it was dropped on size alone.
+- It gets right what Moonshine garbled: idempotent / idempotency, Postgres, Elasticsearch,
+  write-ahead log, web sockets. Shared remaining misses: Redis ("readies"), shard ("char"),
+  rate limiter ("rate-lameter") - the domain-term correction layer (A4.11) targets these.
+- **Latency is the cost.** Measured 1.7 s per phrase in the bake-off, and 3.7-4.7 s per phrase
+  later the same day on the same machine under load (also with the model in the app's worker
+  and on the page's main thread, so it is not the app's wiring). Expect 2-4 s on a fast
+  desktop and more on a typical laptop. In the original bake-off run Moonshine tiny was ~4.5x faster than Whisper tiny.en.
+- **Multi-threading made it worse** (cross-origin-isolated run: ~13 s per phrase), so the worker
+  stays single-threaded and COOP/COEP headers stay off.
+- **WebGPU was not usable here:** the run did not finish in over three minutes in the preview
+  browser (its GPU path may be throttled while the pane is hidden), so it is unmeasured, not
+  disproved. It is the obvious next lever for latency (Chrome/Edge/Brave desktop, recent Safari).
+- Test audio is synthetic TTS, which flatters every model; real-speaker validation is A4.12.
+
+Decision: default to `onnx-community/whisper-tiny.en` at revision
+`2575352d61be1bf7225cf8f8b268a4678025fc58`. To trade accuracy for speed, set
+`VITE_STT_MODEL_ID=onnx-community/moonshine-tiny-ONNX` and
+`VITE_STT_MODEL_REVISION=a6da1241cd305dcd64eab1edbd615f2bb9aabb95` (no code change).
+Whisper weights are MIT-licensed; the model card does not state it, so confirm before
+redistributing the files if you self-host.
+
+End-to-end check of the chosen setup through the app's own shared engine: a continuous 139 s,
+48 kHz stream of 20 phrases was cut into exactly 20 utterances and transcribed in order with a
+6.3 % word error rate. Preload verified from a cold cache: opening `/login` with no interaction
+took the model from idle to ready in ~31 s (fast connection) with monotonic progress 12 -> 99 %.
+
+### Local STT spike: Moonshine (task A4.1, run 2026-10-12)
+
+Decision taken after the above: build local speech-to-text with **Moonshine only** for now
+(Whisper/others are future adapters, see `docs/remaining-work-and-security-plan.md` A4).
+This spike answers "is Moonshine good enough in a browser to ship?". Source and how to re-run:
+`docs/spikes/moonshine/` (README there).
+
+**Setup.** `@huggingface/transformers@3.8.0` from jsDelivr, ONNX Runtime Web (WASM), models
+`onnx-community/moonshine-{tiny,base}-ONNX` at `q8`. 12 system-design sentences (~5-6 s each,
+~65 s total) synthesised with Windows SAPI ("Microsoft David"), 16 kHz mono. Browser: the
+Claude desktop app's built-in Chromium (Chrome 152), 16-core desktop CPU, no GPU path used.
+
+| Run | Model download | First load (download + init) | Speed (x real time) | ms per ~5.5 s clip | Word error rate | Jargon terms recovered |
+|-----|---------------|------------------------------|---------------------|--------------------|-----------------|------------------------|
+| tiny q8, 1 thread | ~28 MB (+4 MB WASM runtime) | 29.8 s | 0.072 (14x faster than real time) | ~395 | **13.0 %** | 10 / 16 |
+| tiny q8, threaded (cross-origin isolated) | same | 21.9 s | 0.106 | ~579 | 13.0 % | 10 / 16 |
+| base q8, 1 thread | ~63 MB (+4 MB) | 43.4 s | 0.129 | ~701 | 11.8 % | 9 / 16 (strict string match) |
+
+Model sizes are from the Hugging Face file listing (encoder + merged decoder, `q8`): tiny
+7.9 + 20.2 MB, base 20.5 + 42.4 MB. License: MIT. JS heap after loading: 32-40 MB (the ONNX
+runtime's own WASM memory is not included in that figure).
+
+**What the numbers say**
+
+- **Speed is a non-issue on this machine.** Even tiny at 0.07x leaves ~14x headroom, so a
+  utterance-by-utterance (not word-by-word) pipeline can feel near-instant. Low-end laptops are
+  **untested** (see gaps).
+- **Accuracy is decent on plain English, weak on exactly our vocabulary.** Typical misses:
+  "Redis" -> "readies", "shard" -> "charge", "idempotent/idempotency" -> "imposed" / "I
+  dependency", "rate limiter" -> "rape lameter", "news feed" -> "new speed", "Elasticsearch" ->
+  "elastic search". Kafka, load balancer, circuit breaker, availability zones, CDN, base 62 and
+  WebSockets came through.
+- **Base is not worth it.** 1.2 points better word error rate for 2.3x the download and ~2x the
+  latency; it did not fix the jargon misses.
+- **Threads don't help at this model size**, so **cross-origin isolation (COOP/COEP) is not
+  required**. A COEP `require-corp` page still loaded the Hugging Face model files fine, so it
+  stays an option, but the default deployment can skip it. Only `wasm-unsafe-eval` in the CSP
+  is needed for WebAssembly.
+- First-load cost is the real UX issue: ~28 MB download plus ~20-30 s initialisation before the
+  mic is usable. It must be a visible, one-time "preparing voice" step with caching (A4.4).
+
+**Gaps - what this spike did NOT establish**
+
+1. **Synthetic speech.** TTS is cleaner than real people. Real accents, mic noise and
+   disfluencies ("um", restarts) will make results worse. A run on recordings of several
+   real speakers is required before release.
+2. **Only Chromium was tested.** Firefox and Safari were not available here. Both run
+   WebAssembly, so it should work, but this is unverified - needs a manual pass.
+3. **No low-end device test** (no CPU throttling available). Verify on an older laptop; a ~5x
+   slower CPU would still be real time at tiny, but that is arithmetic, not a measurement.
+4. **No streaming.** Clips were transcribed whole. Live use needs voice-activity cutting (A4.2)
+   so each spoken phrase is transcribed when the speaker pauses.
+5. **Language.** The English models are English-only; Moonshine publishes separate models for
+   other languages (e.g. French, Japanese, Korean, Arabic, Vietnamese, Ukrainian, Chinese),
+   so non-English input is a model swap, not a rewrite.
+
+**Verdict: conditional GO with `moonshine-tiny` (q8).** Proceed with A4.2-A4.10, on these
+conditions:
+
+- Add a **domain-term correction layer** (new task A4.11): fuzzy/phonetic matching of each
+  utterance against a glossary of system-design terms plus the labels currently on the
+  whiteboard, so "readies" resolves to Redis when a Redis box is drawn. The downstream
+  interviewer LLM also sees the question and diagram and can tolerate some noise, but the
+  transcript the candidate reads should be right.
+- Add a **real-speech validation** (new task A4.12) before release: 5+ speakers, mixed
+  accents, laptop mic, with a go/no-go threshold (suggest <= 15 % word error rate and >= 80 %
+  jargon recall after A4.11).
+- Keep the **Web Speech adapter and typing fallback** so a failed model load or weak device
+  never blocks an interview.
+- If A4.12 fails, the next step is a **Whisper adapter** (the engine interface from A4.5
+  exists for exactly this), not abandoning local STT.
+
 ## Agent session-state durability (`agent/app/store.py`)
 
 Added 2026-09-29. `app/turns.py`'s `_SESSIONS` dict is still the fast path for every read
 and write, but it's now backed by a Postgres table (`agent_sessions`, one row per session,
-whole `InterviewState` as JSONB) — the agent creates and owns this table itself at startup
-(`store.ensure_schema()`), separate from the backend's Flyway-managed schema, on the same
-physical Postgres instance (docker-compose `postgres` service) for operational simplicity
-rather than running a second database.
+whole `InterviewState` as JSONB) on the same physical Postgres instance (docker-compose
+`postgres` service) for operational simplicity rather than running a second database.
+
+**Updated 2026-10-21 (multi-instance, least privilege).** The table is now created by the backend's
+Flyway migration V7, and the agent connects as the restricted `ossature_agent` role, which can touch
+this one table and nothing else (`store.check_connection()` only probes it at startup). Postgres is
+**authoritative**: the in-process `_SESSIONS` dict is a cache validated against the row's `version` on
+every `get_state`, and every write is `store.write_if(..., expected_version)` — an optimistic-lock
+compare-and-set; on a conflict `turns._merge` reloads and redoes its change (A1.1-A1.3 in
+`docs/remaining-work-and-security-plan.md`). This was chosen over sticky routing by session id because
+it needs no routing layer and makes restart recovery and instance hand-off the same code path. The
+rest of this section describes the original single-instance design; read it with that in mind.
+
+**Council job durability (2026-10-21, A2).** The Council runs on a background thread, so a restart used to
+lose it silently (the session then had `council_running` forever and no reference). Its lifecycle is now part
+of the persisted session state: `council_status`, a lease (`council_claim`: owner + expiry, renewed by a
+heartbeat while it runs) and `council_attempts`. `turns.resume_stalled_councils` - run at startup and every 30 s
+- takes over any unfinished job whose lease has lapsed. Claiming, renewing and finishing are all
+version-checked writes (`turns._merge_with`), so a job never runs twice at once and a runner that lost its
+lease cannot overwrite the new owner's result. The cost guard is the attempt cap (3) plus a 30-minute window.
+
+**Backend state shared across instances (2026-10-21, migration V9).** Everything that used to live in one
+backend process now lives in Postgres: rate-limit counters (`rate_limits`, hashed keys), the scheduler lease
+(`scheduler_locks`) and used WebSocket tickets (`ws_ticket_redemptions`). The `SessionSocketRegistry` stays
+per-instance on purpose: a push is always produced while handling a frame from that same socket, and anything
+missed is recovered by replaying the event log from `lastSeq` on reconnect, to whichever instance the client
+lands on. `scripts/two_instance_check.py` runs two backends and two agents against one database to verify this.
 
 This is a working-state cache, not a second system of record — the backend's Postgres
 already holds the durable transcript/diagram/debrief history. So the lifecycle is:

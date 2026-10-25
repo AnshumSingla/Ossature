@@ -11,7 +11,9 @@ import json
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.graph.state import InterviewState
+from app.guard import parse_json, sanitize_debrief
 from app.llm import fast_model
+from app.prompting import untrusted, with_rules
 
 SYSTEM = """You are writing the debrief for a system design interview. Using the interim
 summaries and the reference solution, return a JSON object with keys:
@@ -19,18 +21,21 @@ summaries and the reference solution, return a JSON object with keys:
   "gaps": string[]
   "unresolved": string[]
   "reference_comparison": string  (how the candidate's design compared to the reference)
-Be specific and fair. No numeric score."""
+Be specific and fair. No numeric score. Output only the JSON object."""
 
 
 def debrief_node(state: InterviewState) -> InterviewState:
     summaries = "\n\n".join(state.get("interim_summaries", [])) or "(no interim summaries)"
-    reference = json.dumps(state.get("reference_solution", {}))[:6000]
+    reference = json.dumps(state.get("reference_solution", {}))
 
+    # Summaries were produced from the candidate's own words, so they stay untrusted data here.
     model = fast_model()
     raw = model.invoke(
         [
-            SystemMessage(content=SYSTEM),
-            HumanMessage(content=f"Interim summaries:\n{summaries}\n\nReference:\n{reference}"),
+            SystemMessage(content=with_rules(SYSTEM)),
+            HumanMessage(
+                content=f"{untrusted('summaries', summaries, 12000)}\n\n{untrusted('reference_solution', reference, 6000)}"
+            ),
         ]
     ).content
 
@@ -38,12 +43,10 @@ def debrief_node(state: InterviewState) -> InterviewState:
 
 
 def _parse(raw: str) -> dict:
-    try:
-        data = json.loads(raw)
-        if isinstance(data, dict):
-            return data
-    except (json.JSONDecodeError, TypeError):
-        pass
+    # Forced into exactly the four expected fields, bounded, before it is shown to anyone.
+    debrief = sanitize_debrief(parse_json(raw))
+    if debrief is not None:
+        return debrief
     return {
         "strengths": [],
         "gaps": [],

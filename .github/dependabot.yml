@@ -1,0 +1,28 @@
+# H20: automatic update PRs. Security updates arrive as soon as an advisory is published; version
+# updates are grouped weekly so they do not drown the review queue.
+version: 2
+updates:
+  - package-ecosystem: maven
+    directory: /backend
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+    groups:
+      spring: { patterns: ["org.springframework*"] }
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+    groups:
+      react: { patterns: ["react", "react-dom", "react-router-dom", "@types/react*"] }
+  - package-ecosystem: pip
+    directory: /agent
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+    groups:
+      langchain: { patterns: ["langchain*", "langgraph*", "langsmith"] }
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule: { interval: weekly }
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }

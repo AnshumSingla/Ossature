@@ -12,7 +12,7 @@ See [whiteboard-interviewer-prd.md](whiteboard-interviewer-prd.md) for the full 
 
 | Path        | Stack                              | Responsibility |
 |-------------|------------------------------------|----------------|
-| `frontend/` | React 19 + Vite + TypeScript, React Flow | Whiteboard, mic capture / Web Speech STT+TTS, transcript & chat UI |
+| `frontend/` | React 19 + Vite + TypeScript, React Flow | Whiteboard, on-device speech-to-text (Whisper tiny.en in a Web Worker; **English only**) + browser TTS, transcript & chat UI |
 | `backend/`  | Spring Boot 4 (Java 21), Maven     | WebSocket session mgr, REST lifecycle API, Postgres persistence / event log, bridge to the agent |
 | `agent/`    | Python 3.11, FastAPI, LangGraph    | The interview state graph and every LLM call (Interview / Council / Review / Summary / Debrief nodes) |
 | `docker-compose.yml` | Postgres 16 (+ pgAdmin)   | Local infra only |

@@ -1,35 +1,33 @@
 :root {
-  --text: #403a35;
-  --text-h: #140d08;
-  --text-muted: #726a62;
-  --bg: #fdfcfa;
-  --bg-raised: #fff;
-  --bg-sunken: #f7f3ee;
-  --border: #e7e1d9;
+  /* Coffee / tan / amber / cream palette (colorhunt.co/palette/6f4e37a67b5becb176fed8b1). */
+  --text: #4f3726;
+  --text-h: #2a190f;
+  --text-muted: #735640;
+  --bg: #efdcc2;
+  --bg-raised: #f8ead6;
+  --bg-sunken: #e6d0b0;
+  --border: #d1b28d;
 
-  /* Terracotta - deliberately not the purple/blue every AI-generated UI defaults to.
-     Reserved for primary actions and links, not every UI element. */
-  --accent: #c2410c;
-  --accent-hover: #9a3412;
-  --accent-bg: rgba(194, 65, 12, 0.08);
+  --accent: #6f4e37;
+  --accent-hover: #573c2a;
+  --accent-bg: rgba(111, 78, 55, 0.09);
+  --on-accent: #ffffff;
 
-  /* Warm stone, not cool slate: structural/secondary UI (nav, neutral badges) that isn't
-     "the brand color". */
-  --ink: #57534e;
-  --ink-bg: rgba(87, 83, 78, 0.07);
+  --ink: #7a5a42;
+  --ink-bg: rgba(111, 78, 55, 0.12);
 
-  /* Fourth hue for the whiteboard's Client shape, standing in for blue without being blue. */
-  --rose: #be123c;
-  --rose-bg: rgba(190, 18, 60, 0.08);
+  /* Fourth hue for the whiteboard's Client shape. */
+  --rose: #b4533c;
+  --rose-bg: rgba(180, 83, 60, 0.09);
 
-  --success: #15803d;
-  --success-bg: rgba(21, 128, 61, 0.1);
-  --warning: #b45309;
-  --warning-bg: rgba(180, 83, 9, 0.1);
-  --danger: #b91c1c;
-  --danger-bg: rgba(185, 28, 28, 0.08);
+  --success: #4d7c3a;
+  --success-bg: rgba(77, 124, 58, 0.11);
+  --warning: #b7791f;
+  --warning-bg: rgba(183, 121, 31, 0.12);
+  --danger: #b42318;
+  --danger-bg: rgba(180, 35, 24, 0.08);
 
-  --shadow: rgba(20, 13, 8, 0.06) 0 1px 2px, rgba(20, 13, 8, 0.08) 0 4px 10px -4px;
+  --shadow: rgba(80, 45, 20, 0.1) 0 1px 2px, rgba(80, 45, 20, 0.12) 0 4px 12px -4px;
 
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
   --display: 'Fraunces', Georgia, serif;
@@ -50,52 +48,79 @@
    either way, so every component below is written once and themes for free. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --text: #d9d2c9;
-    --text-h: #f7f3ee;
-    --text-muted: #a69c90;
-    --bg: #15120f;
-    --bg-raised: #1e1a16;
-    --bg-sunken: #0f0d0b;
-    --border: #332d27;
-    --accent: #fb923c;
-    --accent-hover: #fdba74;
-    --accent-bg: rgba(251, 146, 60, 0.14);
-    --ink: #cbc2b7;
-    --ink-bg: rgba(203, 194, 183, 0.1);
-    --rose: #fb7185;
-    --rose-bg: rgba(251, 113, 133, 0.14);
-    --success: #4ade80;
-    --success-bg: rgba(74, 222, 128, 0.12);
-    --warning: #fbbf24;
-    --warning-bg: rgba(251, 191, 36, 0.12);
-    --danger: #f87171;
-    --danger-bg: rgba(248, 113, 113, 0.12);
-    --shadow: rgba(0, 0, 0, 0.4) 0 1px 2px, rgba(0, 0, 0, 0.35) 0 4px 10px -4px;
+    --text: #f7e9d7;
+    --text-h: #fffaf2;
+    --text-muted: #dcc4aa;
+    --bg: #3d2b20;
+    --bg-raised: #5a4334;
+    --bg-sunken: #35251b;
+    --border: #7a5d49;
+
+    /* Amber from the palette: primary actions, links and highlights. */
+    --accent: #f0b983;
+    --accent-hover: #fed8b1;
+    --accent-bg: rgba(236, 177, 118, 0.14);
+    --on-accent: #2a1a0e;
+
+    --ink: #e6cba9;
+    --ink-bg: rgba(230, 203, 169, 0.14);
+    --rose: #f0a08a;
+    --rose-bg: rgba(240, 160, 138, 0.14);
+    --success: #a8c97f;
+    --success-bg: rgba(168, 201, 127, 0.12);
+    --warning: #f2c14e;
+    --warning-bg: rgba(242, 193, 78, 0.12);
+    --danger: #f28b82;
+    --danger-bg: rgba(242, 139, 130, 0.12);
+    --shadow: rgba(20, 10, 4, 0.35) 0 1px 2px, rgba(20, 10, 4, 0.3) 0 6px 16px -6px;
   }
 }
 
 :root[data-theme='dark'] {
-  --text: #d9d2c9;
-  --text-h: #f7f3ee;
-  --text-muted: #a69c90;
-  --bg: #15120f;
-  --bg-raised: #1e1a16;
-  --bg-sunken: #0f0d0b;
-  --border: #332d27;
-  --accent: #fb923c;
-  --accent-hover: #fdba74;
-  --accent-bg: rgba(251, 146, 60, 0.14);
-  --ink: #cbc2b7;
-  --ink-bg: rgba(203, 194, 183, 0.1);
-  --rose: #fb7185;
-  --rose-bg: rgba(251, 113, 133, 0.14);
-  --success: #4ade80;
-  --success-bg: rgba(74, 222, 128, 0.12);
-  --warning: #fbbf24;
-  --warning-bg: rgba(251, 191, 36, 0.12);
-  --danger: #f87171;
-  --danger-bg: rgba(248, 113, 113, 0.12);
-  --shadow: rgba(0, 0, 0, 0.4) 0 1px 2px, rgba(0, 0, 0, 0.35) 0 4px 10px -4px;
+  --text: #f7e9d7;
+  --text-h: #fffaf2;
+  --text-muted: #dcc4aa;
+  --bg: #3d2b20;
+  --bg-raised: #5a4334;
+  --bg-sunken: #35251b;
+  --border: #7a5d49;
+
+  /* Amber from the palette: primary actions, links and highlights. */
+  --accent: #f0b983;
+  --accent-hover: #fed8b1;
+  --accent-bg: rgba(236, 177, 118, 0.14);
+  --on-accent: #2a1a0e;
+
+  --ink: #e6cba9;
+  --ink-bg: rgba(230, 203, 169, 0.14);
+  --rose: #f0a08a;
+  --rose-bg: rgba(240, 160, 138, 0.14);
+  --success: #a8c97f;
+  --success-bg: rgba(168, 201, 127, 0.12);
+  --warning: #f2c14e;
+  --warning-bg: rgba(242, 193, 78, 0.12);
+  --danger: #f28b82;
+  --danger-bg: rgba(242, 139, 130, 0.12);
+  --shadow: rgba(20, 10, 4, 0.35) 0 1px 2px, rgba(20, 10, 4, 0.3) 0 6px 16px -6px;
+}
+
+/* Dark mode: a faint tan glow from the top instead of a flat black-brown. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(236, 177, 118, 0.18), transparent 70%);
+  }
+}
+
+:root[data-theme='dark'] body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(236, 177, 118, 0.18), transparent 70%);
 }
 
 *,
@@ -106,7 +131,9 @@
 
 body {
   margin: 0;
-  background: var(--bg);
+  /* transparent: :root already paints --bg, and an opaque body would cover the dark-mode
+     glow layer (body::before, z-index -1). */
+  background: transparent;
 }
 
 #root {
@@ -232,12 +259,12 @@ code {
   height: 34px;
   flex-shrink: 0;
   border-radius: 9px;
-  background: linear-gradient(155deg, var(--accent), #4c1d95);
+  background: linear-gradient(155deg, #ecb176, #6f4e37);
   color: #fff;
   font-family: var(--display);
   font-weight: 600;
   font-size: 16px;
-  box-shadow: 0 3px 8px -2px rgba(109, 40, 217, 0.45);
+  box-shadow: 0 3px 8px -2px rgba(111, 78, 55, 0.5);
 }
 
 .app-header h1 {
@@ -354,7 +381,7 @@ button:disabled {
 button[type='submit'] {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 button[type='submit']:hover:not(:disabled) {
@@ -482,6 +509,15 @@ button[type='submit']:hover:not(:disabled) {
 
 .q-card-footer button {
   flex-shrink: 0;
+  /* The one primary action on each card - filled, so it out-ranks the card text. */
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.q-card-footer button:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
 }
 
 /* --- Interview room --- */
@@ -812,7 +848,7 @@ button[type='submit']:hover:not(:disabled) {
 
 .bubble-row.candidate .bubble {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   border-bottom-right-radius: 3px;
 }
 
@@ -841,7 +877,7 @@ button[type='submit']:hover:not(:disabled) {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  background-color: #1a1038;
+  background-color: #1f1510;
   background-position: center;
   background-size: cover;
   background-repeat: no-repeat;
@@ -850,7 +886,7 @@ button[type='submit']:hover:not(:disabled) {
      color rather than paying for a second fetched fallback image (tried a url()+image-set()
      fallback first; Chrome's preload scanner fetched BOTH regardless of which one the
      cascade actually picked, which defeated the point). */
-  background-image: url('/auth-bg.webp');
+  background-image: url('/auth-bg-warm.webp');
 }
 
 /* Uniform dark scrim: the photo swings from near-black to bright orange highlights,
@@ -860,7 +896,7 @@ button[type='submit']:hover:not(:disabled) {
   content: '';
   position: absolute;
   inset: 0;
-  background: rgba(10, 6, 28, 0.45);
+  background: rgba(22, 13, 8, 0.45);
 }
 
 .glass-card {
@@ -871,7 +907,7 @@ button[type='submit']:hover:not(:disabled) {
   border-radius: 22px;
   text-align: center;
   color: #fff;
-  background: rgba(20, 14, 38, 0.55);
+  background: rgba(38, 24, 15, 0.55);
   border: 1px solid rgba(255, 255, 255, 0.22);
   backdrop-filter: blur(22px) saturate(140%);
   -webkit-backdrop-filter: blur(22px) saturate(140%);
@@ -915,6 +951,34 @@ button[type='submit']:hover:not(:disabled) {
   pointer-events: none;
 }
 
+/* The eye toggle reuses the .icon slot but is interactive, so undo the pointer-events:none
+   and reset the global button look. */
+.glass-field button.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  right: 11px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: background-color 150ms ease-out, opacity 150ms ease-out;
+}
+
+.glass-field button.icon-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  opacity: 1;
+}
+
+.glass-field button.icon-btn:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 1px;
+}
+
 .glass-row {
   display: flex;
   justify-content: space-between;
@@ -949,12 +1013,12 @@ button[type='submit']:hover:not(:disabled) {
   border-radius: 999px;
   background: #fff;
   border: none;
-  color: #1f2028;
+  color: #2e1d12;
   font-weight: 600;
 }
 
 .glass-card .glass-btn:hover:not(:disabled) {
-  background: #f1f0ff;
+  background: #fff1e0;
 }
 
 .glass-footer {
@@ -972,6 +1036,62 @@ button[type='submit']:hover:not(:disabled) {
   font-size: 12px;
   color: rgba(255, 255, 255, 0.9);
   margin: -6px 0 14px;
+}
+
+/* --- Voice input controls (interview room) --- */
+
+.voice-status {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.voice-model-status {
+  margin: -14px 0 20px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.voice-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin-top: 8px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.voice-options select {
+  font: inherit;
+  color: var(--text-h);
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 6px;
+}
+
+button.link-button {
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.type-box {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.type-box input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
 }
 
 /* --- Debrief: a verdict, not a document dump --- */
@@ -1075,4 +1195,28 @@ button[type='submit']:hover:not(:disabled) {
   font-size: 16px;
   line-height: 1.55;
   color: var(--text-h);
+}
+
+/* --- Session history / account actions --- */
+.card-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.account-section {
+  margin-top: 28px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.account-section.danger {
+  border-color: var(--danger, #b3412f);
+}
+
+.account-section .glass-field,
+.account-section input {
+  max-width: 360px;
 }

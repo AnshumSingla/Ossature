@@ -1,12 +1,15 @@
 package com.ossature.interviewer.service;
 
+import com.ossature.interviewer.logging.LogSafe;
 import tools.jackson.databind.ObjectMapper;
 import com.ossature.interviewer.agent.AgentClient;
 import com.ossature.interviewer.agent.AgentDtos;
 import com.ossature.interviewer.domain.InterviewSession;
 import com.ossature.interviewer.domain.Question;
+import com.ossature.interviewer.domain.QuestionStatus;
 import com.ossature.interviewer.repo.InterviewSessionRepository;
 import com.ossature.interviewer.repo.QuestionRepository;
+import com.ossature.interviewer.repo.UserRepository;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -25,14 +28,16 @@ public class SessionService {
     private static final Logger log = LoggerFactory.getLogger(SessionService.class);
 
     private final InterviewSessionRepository sessions;
+    private final UserRepository users;
     private final QuestionRepository questions;
     private final AgentClient agent;
     private final EventLogService eventLog;
     private final ObjectMapper mapper;
 
-    public SessionService(InterviewSessionRepository sessions, QuestionRepository questions,
+    public SessionService(InterviewSessionRepository sessions, UserRepository users, QuestionRepository questions,
                           AgentClient agent, EventLogService eventLog, ObjectMapper mapper) {
         this.sessions = sessions;
+        this.users = users;
         this.questions = questions;
         this.agent = agent;
         this.eventLog = eventLog;
@@ -41,8 +46,17 @@ public class SessionService {
 
     @Transactional
     public InterviewSession create(UUID userId, UUID questionId) {
+        if (!users.existsById(userId)) {
+            throw new AccountGoneException();
+        }
         Question question = questions.findById(questionId)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown question " + questionId));
+        // Only reviewed questions may be run. A pending/rejected community prompt goes
+        // straight to the LLM, so letting anyone start one by id would bypass the owner review.
+        // Same message as "not found" so the response doesn't reveal that the id exists.
+        if (question.getStatus() != QuestionStatus.APPROVED) {
+            throw new IllegalArgumentException("Unknown question " + questionId);
+        }
 
         InterviewSession session = new InterviewSession(userId, questionId);
         if (question.hasVettedReference()) {
@@ -62,7 +76,7 @@ public class SessionService {
                         Map.of("sender", "ai", "text", opening.text(), "kind", opening.kind()));
             }
         } catch (RuntimeException e) {
-            log.warn("Agent start failed for session {}; continuing without opening turn", session.getId(), e);
+            LogSafe.warn(log, "Agent start failed for session {}; continuing without opening turn", e, session.getId());
         }
         return session;
     }
@@ -76,6 +90,21 @@ public class SessionService {
     @Transactional(readOnly = true)
     public List<InterviewSession> listForUser(UUID userId) {
         return sessions.findByUserIdOrderByStartedAtDesc(userId);
+    }
+
+    /** Deletes one of the caller's own sessions with its events and summaries (anyone else's is "unknown"). */
+    @Transactional
+    public void delete(UUID id) {
+        sessions.delete(get(id));
+    }
+
+    /** Drops the interviewer service's working copy of a deleted session. Best effort: it would only linger. */
+    public void forgetAgentState(UUID sessionId) {
+        try {
+            agent.endSession(sessionId.toString());
+        } catch (RuntimeException e) {
+            LogSafe.warn(log, "Agent cleanup failed for deleted session {} (harmless)", e, sessionId);
+        }
     }
 
     @Transactional
