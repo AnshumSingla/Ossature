@@ -409,6 +409,8 @@ as more than one instance.
 - `V1__init.sql` — `users`, `questions`, `interview_sessions`, `session_events` (append-only
   replay log with a monotonic per-session `seq`), `interim_summaries`.
 - `V2__seed_questions.sql` — four well-known prompts, no reference solutions attached yet.
+- `V12__seed_primer_questions.sql` — eight exercises adapted from The System Design Primer (CC BY 4.0, see
+  `third-party-notices.md`), each with a reference answer (summary, diagram, trade-offs), so sessions on them skip the Council.
 - Diagram/transcript/debrief payloads are stored as `jsonb`.
 
 ## Community submission, owner review, session history/replay (Phase 4)

@@ -230,7 +230,7 @@ class TenantIsolationFullStackTest extends FullStackSupport {
                         }
                         default -> {
                             String body = call("GET", "/api/questions", null, null).body();
-                            if (body.contains("pending")) leaks.add("anonymous saw an unpublished question");
+                            if (body.contains("\"PENDING\"")) leaks.add("anonymous saw an unpublished question");
                             if (call("GET", "/api/sessions/" + sessionA, null, null).status() != 403) leaks.add("anonymous reached a session");
                         }
                     }

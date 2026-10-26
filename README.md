@@ -98,6 +98,10 @@ database passwords or an insecure cookie.
 - [docs/data-retention.md](docs/data-retention.md): what is stored, for how long, and how deletion works
 - [docs/operations-runbook.md](docs/operations-runbook.md): deploy, roll back, rotate secrets, incident playbooks
 
+## Credits
+
+Seed questions and reference answers in the question bank are adapted from [The System Design Primer](https://github.com/donnemartin/system-design-primer) by Donne Martin (CC BY 4.0). Details in [docs/third-party-notices.md](docs/third-party-notices.md).
+
 ## Status
 
 Core interview loop, diagram submit and review, timed summaries, debrief, community-submitted
